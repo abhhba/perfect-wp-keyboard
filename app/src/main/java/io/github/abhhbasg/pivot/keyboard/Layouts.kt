@@ -82,7 +82,7 @@ object Layouts {
 
     /**
      * The letters: every key as wide as the others, the second row set in by half a key, shift and backspace a key and a half.
-     * For Shuangpin ([shuangpin] and Chinese) the keys show their finals and shift becomes the ing key (;).
+     * For Shuangpin ([shuangpin] and Chinese) shift becomes the ing key (;); the keys stay plain letters, without their finals.
      */
     fun letters(mode: Mode?, web: Boolean, shuangpin: Boolean = false): Page {
         val sp = shuangpin && mode == Mode.CHINESE
@@ -90,7 +90,7 @@ object Layouts {
             val l = ch.toString()
             // Holding a key of the first row gives its digit first; the other keys offer their accents.
             val list = listOfNotNull(if (first) digits[s.indexOf(ch)].toString() else null) + (if (sp) emptyList() else accents[l]?.split(' ').orEmpty())
-            Key(Kind.CHAR, l, popup = if (list.isEmpty()) emptyList() else list + l, hint = if (sp) io.github.abhhbasg.pivot.engine.Shuangpin.hints[ch] else null)
+            Key(Kind.CHAR, l, popup = if (list.isEmpty()) emptyList() else list + l)
         }
         val first = if (sp) Key(Kind.CHAR, ";", 1.5f, label = "ing", fn = true) else Key(Kind.SHIFT, units = 1.5f)
         return Page(listOf(
