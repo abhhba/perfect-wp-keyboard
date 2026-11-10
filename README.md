@@ -32,7 +32,7 @@ An Android keyboard that looks and types like the Windows 10 Mobile keyboard: Ch
 - Emoji (hold `&123`), `.com` and the other endings in address fields, the cursor knob to move in four directions.
 - What you teach it stays on the phone and can be forgotten with one button. No internet permission.
 
-Android 8.0 or newer.
+**Download** the APK from [Releases](https://github.com/abhhba/perfect-wp-keyboard/releases/latest). Android 8.0 or newer.
 
 ## Building
 

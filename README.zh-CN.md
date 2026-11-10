@@ -32,7 +32,7 @@
 - 表情（长按 `&123`）、网址框里的 `.com` 和其他后缀、可以上下左右移动光标的圆钮。
 - 学到的东西只保存在手机上，一个按钮就能清除。不需要网络权限。
 
-需要 Android 8.0 或更高版本。
+从 [Releases](https://github.com/abhhba/perfect-wp-keyboard/releases/latest) **下载** APK。需要 Android 8.0 或更高版本。
 
 ## 构建
 
