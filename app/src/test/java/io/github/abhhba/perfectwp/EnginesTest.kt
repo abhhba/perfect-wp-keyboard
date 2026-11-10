@@ -1,7 +1,7 @@
-package io.github.abhhbasg.pivot
+package io.github.abhhba.perfectwp
 
-import io.github.abhhbasg.pivot.engine.EnglishEngine
-import io.github.abhhbasg.pivot.engine.PinyinEngine
+import io.github.abhhba.perfectwp.engine.EnglishEngine
+import io.github.abhhba.perfectwp.engine.PinyinEngine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,7 +48,7 @@ class EnginesTest {
     }
 
     @Test fun readsMicrosoftShuangpin() {
-        val sp = io.github.abhhbasg.pivot.engine.Shuangpin.Decoder(zh.syllables)
+        val sp = io.github.abhhba.perfectwp.engine.Shuangpin.Decoder(zh.syllables)
         assertEquals(listOf("ni", "hao"), sp.decode("nihk"))
         assertEquals(listOf("zhong", "guo"), sp.decode("vsgo"))
         assertEquals(listOf("ying", "an"), sp.decode("y;oj"))

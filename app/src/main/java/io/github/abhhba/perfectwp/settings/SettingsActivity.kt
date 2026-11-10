@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.settings
+package io.github.abhhba.perfectwp.settings
 
 import android.app.Activity
 import android.content.Intent
@@ -13,9 +13,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import io.github.abhhbasg.pivot.R
-import io.github.abhhbasg.pivot.engine.Engines
-import io.github.abhhbasg.pivot.ui.Palette
+import io.github.abhhba.perfectwp.R
+import io.github.abhhba.perfectwp.engine.Engines
+import io.github.abhhba.perfectwp.ui.Palette
 
 /**
  * The app: a pivot with three pages. *start* turns the keyboard on and has a box to try it; *settings* has the settings in three

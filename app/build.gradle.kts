@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.abhhbasg.pivot"
+    namespace = "io.github.abhhba.perfectwp"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.github.abhhbasg.pivot"
+        applicationId = "io.github.abhhba.perfectwp"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

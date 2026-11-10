@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.keyboard
+package io.github.abhhba.perfectwp.keyboard
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -7,12 +7,12 @@ import android.graphics.Paint
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
-import io.github.abhhbasg.pivot.ui.Colors
-import io.github.abhhbasg.pivot.ui.Fonts
-import io.github.abhhbasg.pivot.ui.Glyph
-import io.github.abhhbasg.pivot.ui.Glyphs
-import io.github.abhhbasg.pivot.ui.Palette
-import io.github.abhhbasg.pivot.ui.dp
+import io.github.abhhba.perfectwp.ui.Colors
+import io.github.abhhba.perfectwp.ui.Fonts
+import io.github.abhhba.perfectwp.ui.Glyph
+import io.github.abhhba.perfectwp.ui.Glyphs
+import io.github.abhhba.perfectwp.ui.Palette
+import io.github.abhhba.perfectwp.ui.dp
 import kotlin.math.abs
 
 /**
@@ -64,8 +64,10 @@ class GridPanel(context: Context) : View(context) {
         var x = padLeft; var y = 0f
         val minW = width / 6f
         items.forEachIndexed { i, s ->
-            val w = when { cellWidth > 0f -> cellWidth; fixedColumns > 0 -> (width - padLeft) / fixedColumns.toFloat(); else -> maxOf(minW, text.measureText(s) + context.dp(28f)) }
-            if ((x + w > width + 0.5f || (fixedColumns > 0 && i > 0 && i % fixedColumns == 0)) && x > padLeft) { x = padLeft; y += rowH }
+            // In the grid of candidates a word takes as many columns as it needs.
+            val w = when { cellWidth > 0f -> cellWidth * kotlin.math.ceil((text.measureText(s) + rowH * 0.45f) / cellWidth).coerceIn(1f, fixedColumns.coerceAtLeast(1).toFloat()); fixedColumns > 0 -> (width - padLeft) / fixedColumns.toFloat(); else -> maxOf(minW, text.measureText(s) + context.dp(28f)) }
+            val full = if (cellWidth > 0f) x + w > padLeft + cellWidth * fixedColumns + 0.5f else (x + w > width + 0.5f || (fixedColumns > 0 && i > 0 && i % fixedColumns == 0))
+            if (full && x > padLeft) { x = padLeft; y += rowH }
             rects[i * 4] = x; rects[i * 4 + 1] = y; rects[i * 4 + 2] = x + w; rects[i * 4 + 3] = y + rowH
             x += w
         }

@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.keyboard
+package io.github.abhhba.perfectwp.keyboard
 
 /** What a key does. */
 enum class Kind { CHAR, SHIFT, BACKSPACE, ENTER, SPACE, SYMBOLS, LETTERS, MORE_SYMBOLS, LANGUAGE }

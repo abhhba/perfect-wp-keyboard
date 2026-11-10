@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
-    android:settingsActivity="io.github.abhhbasg.pivot.settings.SettingsActivity"
+    android:settingsActivity="io.github.abhhba.perfectwp.settings.SettingsActivity"
     android:supportsSwitchingToNextInputMethod="true">
     <subtype android:label="@string/subtype_zh" android:imeSubtypeLocale="zh_CN" android:imeSubtypeMode="keyboard" />
     <subtype android:label="@string/subtype_en" android:imeSubtypeLocale="en_US" android:imeSubtypeMode="keyboard" />

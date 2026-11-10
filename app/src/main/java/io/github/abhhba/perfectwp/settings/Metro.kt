@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.settings
+package io.github.abhhba.perfectwp.settings
 
 import android.annotation.SuppressLint
 import android.app.Dialog
@@ -19,13 +19,13 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import io.github.abhhbasg.pivot.Prefs
-import io.github.abhhbasg.pivot.R
-import io.github.abhhbasg.pivot.ui.Fonts
-import io.github.abhhbasg.pivot.ui.Glyph
-import io.github.abhhbasg.pivot.ui.Glyphs
-import io.github.abhhbasg.pivot.ui.Palette
-import io.github.abhhbasg.pivot.ui.dp
+import io.github.abhhba.perfectwp.Prefs
+import io.github.abhhba.perfectwp.R
+import io.github.abhhba.perfectwp.ui.Fonts
+import io.github.abhhba.perfectwp.ui.Glyph
+import io.github.abhhba.perfectwp.ui.Glyphs
+import io.github.abhhba.perfectwp.ui.Palette
+import io.github.abhhba.perfectwp.ui.dp
 import kotlin.math.abs
 import kotlin.math.roundToInt
 

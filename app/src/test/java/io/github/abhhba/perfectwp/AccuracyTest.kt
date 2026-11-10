@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot
+package io.github.abhhba.perfectwp
 
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "pivot-keyboard"
+rootProject.name = "perfect-wp-keyboard"
 include(":app")

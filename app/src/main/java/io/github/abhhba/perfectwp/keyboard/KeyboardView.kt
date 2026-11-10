@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.keyboard
+package io.github.abhhba.perfectwp.keyboard
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -9,12 +9,12 @@ import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import io.github.abhhbasg.pivot.ui.Colors
-import io.github.abhhbasg.pivot.ui.Fonts
-import io.github.abhhbasg.pivot.ui.Glyph
-import io.github.abhhbasg.pivot.ui.Glyphs
-import io.github.abhhbasg.pivot.ui.Palette
-import io.github.abhhbasg.pivot.ui.dp
+import io.github.abhhba.perfectwp.ui.Colors
+import io.github.abhhba.perfectwp.ui.Fonts
+import io.github.abhhba.perfectwp.ui.Glyph
+import io.github.abhhba.perfectwp.ui.Glyphs
+import io.github.abhhba.perfectwp.ui.Palette
+import io.github.abhhba.perfectwp.ui.dp
 import kotlin.math.abs
 import kotlin.math.hypot
 

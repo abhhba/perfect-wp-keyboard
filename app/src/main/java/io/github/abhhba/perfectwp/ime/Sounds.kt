@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.ime
+package io.github.abhhba.perfectwp.ime
 
 import android.content.Context
 import android.media.AudioAttributes

@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.ime
+package io.github.abhhba.perfectwp.ime
 
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
@@ -14,28 +14,28 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.ExtractedTextRequest
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import io.github.abhhbasg.pivot.Prefs
-import io.github.abhhbasg.pivot.R
-import io.github.abhhbasg.pivot.engine.Candidate
-import io.github.abhhbasg.pivot.engine.Engines
-import io.github.abhhbasg.pivot.keyboard.ButtonRow
-import io.github.abhhbasg.pivot.keyboard.CandidateBar
-import io.github.abhhbasg.pivot.keyboard.Emoji
-import io.github.abhhbasg.pivot.keyboard.GridPanel
-import io.github.abhhbasg.pivot.keyboard.Key
-import io.github.abhhbasg.pivot.keyboard.KeyListener
-import io.github.abhhbasg.pivot.keyboard.KeyboardView
-import io.github.abhhbasg.pivot.keyboard.Kind
-import io.github.abhhbasg.pivot.keyboard.Layouts
-import io.github.abhhbasg.pivot.keyboard.Mode
-import io.github.abhhbasg.pivot.keyboard.PageId
-import io.github.abhhbasg.pivot.keyboard.SidePanel
-import io.github.abhhbasg.pivot.keyboard.VoicePanel
-import io.github.abhhbasg.pivot.settings.SettingsActivity
-import io.github.abhhbasg.pivot.ui.Colors
-import io.github.abhhbasg.pivot.ui.Glyph
-import io.github.abhhbasg.pivot.ui.Palette
-import io.github.abhhbasg.pivot.ui.dp
+import io.github.abhhba.perfectwp.Prefs
+import io.github.abhhba.perfectwp.R
+import io.github.abhhba.perfectwp.engine.Candidate
+import io.github.abhhba.perfectwp.engine.Engines
+import io.github.abhhba.perfectwp.keyboard.ButtonRow
+import io.github.abhhba.perfectwp.keyboard.CandidateBar
+import io.github.abhhba.perfectwp.keyboard.Emoji
+import io.github.abhhba.perfectwp.keyboard.GridPanel
+import io.github.abhhba.perfectwp.keyboard.Key
+import io.github.abhhba.perfectwp.keyboard.KeyListener
+import io.github.abhhba.perfectwp.keyboard.KeyboardView
+import io.github.abhhba.perfectwp.keyboard.Kind
+import io.github.abhhba.perfectwp.keyboard.Layouts
+import io.github.abhhba.perfectwp.keyboard.Mode
+import io.github.abhhba.perfectwp.keyboard.PageId
+import io.github.abhhba.perfectwp.keyboard.SidePanel
+import io.github.abhhba.perfectwp.keyboard.VoicePanel
+import io.github.abhhba.perfectwp.settings.SettingsActivity
+import io.github.abhhba.perfectwp.ui.Colors
+import io.github.abhhba.perfectwp.ui.Glyph
+import io.github.abhhba.perfectwp.ui.Palette
+import io.github.abhhba.perfectwp.ui.dp
 
 /**
  * The keyboard. Chinese is typed in Pinyin (or Microsoft Shuangpin, chosen in the settings): the letters stay in the text, cut
@@ -43,7 +43,7 @@ import io.github.abhhbasg.pivot.ui.dp
  * stays to be chosen. After a choice the bar offers what usually comes next. The 简/ENG key switches to English, where the word
  * being typed is finished or fixed when space is pressed (backspace right after undoes a fix).
  */
-class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener, Voice.Listener {
+class WpIme : InputMethodService(), KeyListener, CandidateBar.Listener, Voice.Listener {
     private enum class Field { TEXT, PLAIN, PASSWORD, NUMBER, PHONE }
     private enum class Panel { NONE, CANDIDATES, EMOJI, VOICE }
 
@@ -521,7 +521,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener, Voice
         when {
             field == Field.PASSWORD || field == Field.NUMBER || field == Field.PHONE -> b.setWords(emptyList())
             typingChinese() && composing.isNotEmpty() ->
-                b.setWords(shownPinyin().take(if (panel == Panel.CANDIDATES) 7 else 40).map { it.text }, expandable = pinyin.size > 1, expanded = panel == Panel.CANDIDATES)
+                b.setWords(shownPinyin().take(40).map { it.text }, expandable = pinyin.size > 1, expanded = panel == Panel.CANDIDATES)
             typingChinese() && follow.isNotEmpty() -> b.setWords(follow)
             composing.isNotEmpty() && field == Field.TEXT -> {
                 val typed = composing.toString()
@@ -655,7 +655,8 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener, Voice
         val g = grid ?: return
         val b = bar ?: return
         panel = Panel.CANDIDATES
-        val rest = shownPinyin().drop(7)
+        updateBar()
+        val rest = shownPinyin().drop(b.firstRow)
         g.setItems(rest.map { it.text }, 7, 0.36f, cell = b.gridCell, pad = b.gridPad, row = b.height * 1.1f)
         g.onTopItem = null
         g.onPick = { i -> rest.getOrNull(i)?.let { commitPinyin(it, all = false) } }

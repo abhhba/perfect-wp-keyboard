@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.ui
+package io.github.abhhba.perfectwp.ui
 
 import android.content.Context
 import android.graphics.Canvas
@@ -6,7 +6,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
-import io.github.abhhbasg.pivot.R
+import io.github.abhhba.perfectwp.R
 
 enum class Glyph { SHIFT, CAPS_LOCK, BACKSPACE, ENTER, SEARCH, SEND, GO, DONE, SMILEY, MIC, CHEVRON_DOWN, CHEVRON_UP, CHEVRON_LEFT, CHEVRON_RIGHT, BACK, CLOSE, GLOBE, GEAR, NEXT_PAGE }
 

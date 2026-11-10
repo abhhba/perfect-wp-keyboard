@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.keyboard
+package io.github.abhhba.perfectwp.keyboard
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -7,11 +7,11 @@ import android.graphics.Paint
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
-import io.github.abhhbasg.pivot.ui.Colors
-import io.github.abhhbasg.pivot.ui.Fonts
-import io.github.abhhbasg.pivot.ui.Glyph
-import io.github.abhhbasg.pivot.ui.Glyphs
-import io.github.abhhbasg.pivot.ui.Palette
+import io.github.abhhba.perfectwp.ui.Colors
+import io.github.abhhba.perfectwp.ui.Fonts
+import io.github.abhhba.perfectwp.ui.Glyph
+import io.github.abhhba.perfectwp.ui.Glyphs
+import io.github.abhhba.perfectwp.ui.Palette
 import kotlin.math.abs
 
 /**
@@ -68,6 +68,12 @@ class CandidateBar(context: Context) : View(context) {
     private fun start() = micWidth()
     private fun room() = width - start() - arrowWidth()
 
+    /** With all the candidates open: how many of them the bar shows, the first row of the grid. */
+    var firstRow = 0; private set
+
+    /** How many columns of the grid [w] takes. */
+    fun columnsFor(w: String): Int { style(); return kotlin.math.ceil((text.measureText(w) + height * 0.5f) / gridCell).toInt().coerceIn(1, 7) }
+
     /** The columns of the open grid: a tenth of the width each, after a small margin. */
     val gridCell get() = width / 10f
     val gridPad get() = width * 0.028f
@@ -78,8 +84,17 @@ class CandidateBar(context: Context) : View(context) {
         style()
         edges = FloatArray(words.size + 1)
         if (expanded) {
-            for (i in words.indices) edges[i + 1] = if (i < 7) gridPad + gridCell * (i + 1) - start() else edges[i]
-            if (words.isNotEmpty()) edges[0] = gridPad - start()
+            // The columns of the grid below: a word takes as many as it needs, and the row ends when the next does not fit.
+            edges[0] = gridPad - start()
+            var used = 0
+            firstRow = 0
+            for ((i, w) in words.withIndex()) {
+                val span = columnsFor(w)
+                if (used + span > 7) break
+                used += span
+                edges[i + 1] = edges[i] + gridCell * span
+                firstRow = i + 1
+            }
             return
         }
         words.forEachIndexed { i, w -> edges[i + 1] = edges[i] + text.measureText(w) + height * 0.6f }
@@ -110,7 +125,7 @@ class CandidateBar(context: Context) : View(context) {
         canvas.clipRect(start(), 0f, start() + room(), h)
         style()
         val m = text.fontMetrics
-        val shown = if (expanded) minOf(7, words.size) else words.size
+        val shown = if (expanded) firstRow else words.size
         for (i in 0 until shown) {
             val l = start() + edges[i] - scroll; val r = start() + edges[i + 1] - scroll
             if (r < start() || l > start() + room()) continue
@@ -131,7 +146,7 @@ class CandidateBar(context: Context) : View(context) {
         if (x < micWidth()) return MIC
         if (arrowWidth() > 0f && x >= width - arrowWidth()) return ARROW
         val at = x - start() + scroll
-        val shown = if (expanded) minOf(7, words.size) else words.size
+        val shown = if (expanded) firstRow else words.size
         return (0 until shown).firstOrNull { at >= edges[it] && at < edges[it + 1] } ?: NONE
     }
 

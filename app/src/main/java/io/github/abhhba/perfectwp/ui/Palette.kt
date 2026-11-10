@@ -1,8 +1,8 @@
-package io.github.abhhbasg.pivot.ui
+package io.github.abhhba.perfectwp.ui
 
 import android.content.Context
 import android.content.res.Configuration
-import io.github.abhhbasg.pivot.Prefs
+import io.github.abhhba.perfectwp.Prefs
 
 /** One of the accent colours offered, with its name. */
 class Accent(val name: String, val color: Int)

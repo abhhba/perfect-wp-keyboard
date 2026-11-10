@@ -1,11 +1,11 @@
-package io.github.abhhbasg.pivot
+package io.github.abhhba.perfectwp
 
 import android.content.Context
 import android.content.SharedPreferences
 
 /** Every setting of the app, in one place, with its default. */
 class Prefs(context: Context) {
-    val sp: SharedPreferences = context.applicationContext.getSharedPreferences("pivot", Context.MODE_PRIVATE)
+    val sp: SharedPreferences = context.applicationContext.getSharedPreferences("perfectwp", Context.MODE_PRIVATE)
 
     private fun b(key: String, def: Boolean) = sp.getBoolean(key, def)
     private fun i(key: String, def: Int) = sp.getInt(key, def)
@@ -13,7 +13,7 @@ class Prefs(context: Context) {
 
     /** "system", "dark" or "light". */
     var theme: String get() = s(THEME, "system"); set(v) = sp.edit().putString(THEME, v).apply()
-    /** Index into [io.github.abhhbasg.pivot.ui.Palette.accents]. */
+    /** Index into [io.github.abhhba.perfectwp.ui.Palette.accents]. */
     var accent: Int get() = i(ACCENT, 1); set(v) = sp.edit().putInt(ACCENT, v).apply()
     var chinese: Boolean get() = b(CHINESE, true); set(v) = sp.edit().putBoolean(CHINESE, v).apply()
     /** Microsoft Shuangpin instead of full Pinyin; only in the settings, as on the phone. */

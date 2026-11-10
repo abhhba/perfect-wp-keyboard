@@ -1,4 +1,4 @@
-package io.github.abhhbasg.pivot.engine
+package io.github.abhhba.perfectwp.engine
 
 /**
  * Microsoft Shuangpin: every syllable is two keys, the initial and the final. zh, ch and sh are v, i and u; a syllable without
