@@ -1,7 +1,7 @@
 package io.github.abhhbasg.pivot.ime
 
+import android.content.Intent
 import android.inputmethodservice.InputMethodService
-import android.media.AudioManager
 import android.os.Build
 import android.os.SystemClock
 import android.text.InputType
@@ -11,10 +11,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.ExtractedTextRequest
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import io.github.abhhbasg.pivot.Prefs
+import io.github.abhhbasg.pivot.R
 import io.github.abhhbasg.pivot.engine.Candidate
 import io.github.abhhbasg.pivot.engine.Engines
 import io.github.abhhbasg.pivot.keyboard.ButtonRow
@@ -29,27 +30,35 @@ import io.github.abhhbasg.pivot.keyboard.Layouts
 import io.github.abhhbasg.pivot.keyboard.Mode
 import io.github.abhhbasg.pivot.keyboard.PageId
 import io.github.abhhbasg.pivot.keyboard.SidePanel
+import io.github.abhhbasg.pivot.keyboard.VoicePanel
+import io.github.abhhbasg.pivot.settings.SettingsActivity
 import io.github.abhhbasg.pivot.ui.Colors
 import io.github.abhhbasg.pivot.ui.Glyph
 import io.github.abhhbasg.pivot.ui.Palette
+import io.github.abhhbasg.pivot.ui.dp
 
 /**
- * The keyboard. Chinese is typed in Pinyin: the letters stay in the text, underlined and cut into syllables, and the bar offers
- * the characters; space takes the first, a tap takes any, and what a choice does not cover stays to be chosen. The 中/英 key
- * switches to English, where the word being typed is finished or fixed when space is pressed (backspace right after undoes a fix).
+ * The keyboard. Chinese is typed in Pinyin (or Microsoft Shuangpin, chosen in the settings): the letters stay in the text, cut
+ * into syllables, and the bar offers the characters; space takes the first, a tap takes any, and what a choice does not cover
+ * stays to be chosen. After a choice the bar offers what usually comes next. The 简/ENG key switches to English, where the word
+ * being typed is finished or fixed when space is pressed (backspace right after undoes a fix).
  */
-class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
+class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener, Voice.Listener {
     private enum class Field { TEXT, PLAIN, PASSWORD, NUMBER, PHONE }
-    private enum class Panel { NONE, CANDIDATES, EMOJI }
+    private enum class Panel { NONE, CANDIDATES, EMOJI, VOICE }
 
     private lateinit var prefs: Prefs
+    private var sounds: Sounds? = null
+    private var voice: Voice? = null
     private var keyboard: KeyboardView? = null
     private var bar: CandidateBar? = null
     private var grid: GridPanel? = null
     private var buttons: ButtonRow? = null
     private var side: SidePanel? = null
+    private var voicePanel: VoicePanel? = null
     private var panelBox: LinearLayout? = null
-    private var root: LinearLayout? = null
+    private var spacer: View? = null
+    private var body: LinearLayout? = null
     private var colors: Colors? = null
 
     private var field = Field.TEXT
@@ -57,18 +66,26 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     private var panel = Panel.NONE
     private var shift = 0
     private var lastShiftTap = 0L
-    /** The Chinese keyboard is typing Chinese (简) and not English (ENG). Kept from one text box to the next. */
+    /** Typing Chinese (简) and not English (ENG). Kept from one text box to the next. */
     private var chineseMode = true
     /** A box for an address: ".com" in place of the comma. */
     private var web = false
     /** All the candidates open, only the single characters. */
     private var singles = false
+    /** The letters (or Shuangpin keys) being typed. */
     private val composing = StringBuilder()
     private var pinyin: List<Candidate> = emptyList()
+    /** What comes after the last word chosen, offered while nothing is typed. */
+    private var follow: List<String> = emptyList()
+    /** The Chinese word written last, for what comes after it. */
+    private var prevWord: String? = null
     private var english: List<String> = emptyList()
     private var englishFix: String? = null
     /** The last fix space made, so that backspace can give back what was typed. */
     private var lastFix: Pair<String, String>? = null
+    /** What the press of backspace that began a slide deleted, and the text a slide up cleared, to bring back. */
+    private var lastDeleted: String? = null
+    private var cleared: String? = null
     private var autoSpace = false
     private var lastSpace = 0L
     private var emoji: List<Emoji.Category> = emptyList()
@@ -77,9 +94,15 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
+        sounds = Sounds(this)
     }
 
+    override fun onDestroy() { voice?.stop(); sounds?.release(); super.onDestroy() }
+
     // --- views ------------------------------------------------------------------------------------------------------
+
+    /** Room above the keys where a held key of the first row draws its tiles; touches there go through to the app. */
+    private fun overlayHeight() = (dp(60f) * prefs.keyHeight / 100f).toInt()
 
     override fun onCreateInputView(): View {
         val kb = KeyboardView(this).also { it.listener = this; keyboard = it }
@@ -87,6 +110,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         val g = GridPanel(this).also { grid = it }
         val btn = ButtonRow(this).also { buttons = it }
         val sp = SidePanel(this).also { side = it; it.onToggle = { singles = !singles; it.setSingles(singles); openCandidates() } }
+        val vp = VoicePanel(this).also { voicePanel = it; it.visibility = View.GONE }
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(g, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
@@ -100,41 +124,62 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         }
         panelBox = box
         val frame = FrameLayout(this).apply {
+            clipChildren = false
             addView(kb, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(box, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0))
+            addView(vp, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0))
         }
-        val r = LinearLayout(this).apply {
+        val bd = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            clipChildren = false
             addView(b, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
+        body = bd
+        val sp0 = View(this).also { spacer = it }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            addView(sp0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, overlayHeight()))
+            addView(bd, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
         // Android 15 draws a keyboard under the navigation bar, and the strip with its hide and switch buttons is taller than the bar:
         // keep the keys above both.
-        if (Build.VERSION.SDK_INT >= 30) r.setOnApplyWindowInsetsListener { v, insets ->
+        if (Build.VERSION.SDK_INT >= 30) bd.setOnApplyWindowInsetsListener { v, insets ->
             val bottom = maxOf(insets.getInsets(WindowInsets.Type.navigationBars()).bottom, insets.getInsets(WindowInsets.Type.tappableElement()).bottom)
             v.setPadding(0, 0, 0, bottom); insets
         }
-        root = r
         applyLook()
-        return r
+        return root
+    }
+
+    /** The app is laid out down to the top of the bar, not of the room above it, and touches in that room reach the app. */
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        if (isFullscreenMode) return
+        val extra = spacer?.height ?: 0
+        outInsets.contentTopInsets += extra
+        outInsets.visibleTopInsets += extra
+        outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_CONTENT
     }
 
     private fun applyLook() {
         val c = Palette.colors(this, prefs)
         colors = c
-        keyboard?.setColors(c); bar?.setColors(c); grid?.setColors(c); buttons?.setColors(c); side?.setColors(c)
-        root?.setBackgroundColor(c.background)
+        keyboard?.setColors(c); bar?.setColors(c); grid?.setColors(c); buttons?.setColors(c); side?.setColors(c); voicePanel?.setColors(c)
+        body?.setBackgroundColor(c.background)
         keyboard?.setPreview(prefs.preview)
         keyboard?.setHeightPct(prefs.keyHeight)
-        bar?.setMicAvailable(voiceIme() != null && field != Field.PASSWORD)
-        if (Build.VERSION.SDK_INT >= 28) window?.window?.navigationBarColor = c.background
+        spacer?.layoutParams = spacer?.layoutParams?.apply { height = overlayHeight() }
+        bar?.setMicAvailable(field != Field.PASSWORD && field != Field.NUMBER && field != Field.PHONE)
     }
 
-    // --- starting and stopping ------------------------------------------------------------------------------------------
+    // --- starting and stopping --------------------------------------------------------------------------------------
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        composing.clear(); pinyin = emptyList(); english = emptyList(); lastFix = null; autoSpace = false
+        composing.clear(); pinyin = emptyList(); english = emptyList(); follow = emptyList(); prevWord = null
+        lastFix = null; autoSpace = false; cleared = null
         val cls = info.inputType and InputType.TYPE_MASK_CLASS
         val variation = info.inputType and InputType.TYPE_MASK_VARIATION
         field = when {
@@ -147,7 +192,8 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         }
         web = cls == InputType.TYPE_CLASS_TEXT && variation in WEB
         page = when (field) { Field.NUMBER -> PageId.NUMBERS; Field.PHONE -> PageId.PHONE; else -> PageId.LETTERS }
-        panel = Panel.NONE
+        if (panel == Panel.VOICE) voice?.stop()
+        closePanel()
         shift = 0
         applyLook()
         showPage()
@@ -159,6 +205,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        if (voice?.active == true) voice?.stop()
         currentInputConnection?.finishComposingText()
         composing.clear()
         if (prefs.learn) Engines.save(this)
@@ -169,20 +216,24 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         // The cursor was moved out of the word being typed: leave the word as it is.
         if (composing.isNotEmpty() && (candidatesEnd == -1 || newSelStart != candidatesEnd || newSelEnd != candidatesEnd)) {
             composing.clear(); currentInputConnection?.finishComposingText()
-            pinyin = emptyList(); english = emptyList(); closePanel(); updateBar()
+            pinyin = emptyList(); english = emptyList(); follow = emptyList(); prevWord = null
+            if (panel == Panel.CANDIDATES) closePanel()
+            updateBar()
         }
         if (newSelStart != oldSelStart && composing.isEmpty()) autoCaps()
     }
 
     private fun usesChinese() = prefs.chinese && field == Field.TEXT
     private fun typingChinese() = usesChinese() && chineseMode && page == PageId.LETTERS
+    private fun shuangpin() = prefs.shuangpin && typingChinese()
+
     /** The language key: 简 or ENG on the Chinese keyboard; none when only English is typed. */
     private fun mode(): Mode? = if (usesChinese()) (if (chineseMode) Mode.CHINESE else Mode.ENGLISH) else null
 
     private fun showPage() {
         val kb = keyboard ?: return
         kb.setPage(when (page) {
-            PageId.LETTERS -> Layouts.letters(mode(), web)
+            PageId.LETTERS -> Layouts.letters(mode(), web, prefs.shuangpin)
             PageId.SYMBOLS -> Layouts.symbols(false, mode(), web)
             PageId.MORE_SYMBOLS -> Layouts.symbols(true, mode(), web)
             PageId.NUMBERS -> Layouts.numbers(false)
@@ -192,9 +243,11 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         kb.setShift(shift)
     }
 
+    /** Switching language starts English in small letters, whatever the sentence. */
     private fun setChinese(on: Boolean) {
         if (chineseMode == on) return
-        finishAll(); chineseMode = on; setShift(0); showPage(); autoCaps(); updateBar()
+        finishAll(); chineseMode = on; follow = emptyList(); prevWord = null
+        setShift(0); showPage(); updateBar()
     }
 
     private fun updateEnter(info: EditorInfo?) {
@@ -222,14 +275,10 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     // --- keys -------------------------------------------------------------------------------------------------------
 
     override fun onDown(key: Key) {
-        if (prefs.sound) {
-            val fx = when (key.kind) {
-                Kind.BACKSPACE -> AudioManager.FX_KEYPRESS_DELETE
-                Kind.SPACE -> AudioManager.FX_KEYPRESS_SPACEBAR
-                Kind.ENTER -> AudioManager.FX_KEYPRESS_RETURN
-                else -> AudioManager.FX_KEYPRESS_STANDARD
-            }
-            (getSystemService(AUDIO_SERVICE) as AudioManager).playSoundEffect(fx, -1f)
+        if (prefs.sound) when (key.kind) {
+            Kind.BACKSPACE -> sounds?.delete()
+            Kind.SPACE, Kind.ENTER -> sounds?.space()
+            else -> sounds?.key()
         }
         if (prefs.vibrate) keyboard?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
     }
@@ -250,7 +299,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
             Kind.LETTERS -> { page = PageId.LETTERS; showPage(); autoCaps() }
             Kind.LANGUAGE -> when (text) {
                 // A tile of the held key: the settings, or one of the two languages; a plain tap switches.
-                Layouts.SETTINGS -> { finishAll(); startActivity(android.content.Intent(this, io.github.abhhbasg.pivot.settings.SettingsActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                Layouts.SETTINGS -> { finishAll(); startActivity(Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 Mode.CHINESE.key -> setChinese(true)
                 "" -> setChinese(!chineseMode)
                 else -> setChinese(false)
@@ -258,28 +307,59 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         }
     }
 
-    override fun onRepeat(key: Key) = backspace(true)
+    /** Every repeat of a held backspace clicks again: tap-tap-tap. */
+    override fun onRepeat(key: Key) {
+        if (prefs.sound) sounds?.delete()
+        backspace(true)
+    }
 
     override fun onArrow(keyCode: Int) { finishAll(); sendDownUpKeyEvents(keyCode) }
 
     /** Holding &123 opens the emoji, as the smiley in its corner says. */
     override fun onHold(key: Key) { if (key.kind == Kind.SYMBOLS) { finishAll(); openEmoji() } }
 
+    /** Up from backspace clears all the text (the press had already deleted a character: it comes back first); down brings it back. */
+    override fun onBackspaceSwipe(up: Boolean) {
+        val ic = currentInputConnection ?: return
+        if (up) {
+            finishAll()
+            lastDeleted?.let { ic.commitText(it, 1) }
+            lastDeleted = null
+            val all = ic.getExtractedText(ExtractedTextRequest(), 0)?.text?.toString()
+            if (all.isNullOrEmpty()) return
+            cleared = all
+            ic.beginBatchEdit()
+            ic.setSelection(0, all.length)
+            ic.commitText("", 1)
+            ic.endBatchEdit()
+        } else {
+            val back = cleared ?: return
+            lastDeleted?.let { ic.commitText(it, 1) }
+            lastDeleted = null
+            ic.commitText(back, 1)
+            cleared = null
+        }
+        follow = emptyList(); prevWord = null
+        autoCaps(); updateBar()
+    }
+
     private fun type(raw: String) {
         val ic = currentInputConnection ?: return
         val text = if (shift != 0) raw.uppercase() else raw
-        lastFix = null
+        lastFix = null; lastDeleted = null
         val letter = raw.length == 1 && raw[0] in 'a'..'z'
         if (typingChinese()) {
-            if (letter && shift == 0) {
-                composing.append(raw); showPinyin(); return
-            }
+            // Shuangpin: ; is the ing key, a final, so only in the second place of a syllable.
+            val ing = raw == ";" && shuangpin() && composing.length % 2 == 1
+            if ((letter && shift == 0) || ing) { composing.append(raw); follow = emptyList(); showPinyin(); return }
             // A sign (or a capital): the best reading first, then the sign.
             if (composing.isNotEmpty()) pinyin.firstOrNull()?.let { commitPinyin(it, all = true) }
-            ic.commitText(text, 1)
+            ic.commitText(if (raw == ";") "；" else text, 1)
+            follow = emptyList(); prevWord = null
             if (shift == 1) setShift(0)
             updateBar(); return
         }
+        follow = emptyList(); prevWord = null
         val wordChar = text.length == 1 && (text[0].isLetter() || (text[0] == '\'' && composing.isNotEmpty()))
         if (wordChar && field != Field.PASSWORD && field != Field.NUMBER && field != Field.PHONE) {
             composing.append(text)
@@ -301,7 +381,9 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
 
     private fun space() {
         val ic = currentInputConnection ?: return
+        lastDeleted = null
         if (typingChinese() && composing.isNotEmpty()) { pinyin.firstOrNull()?.let { commitPinyin(it, all = false) } ?: commitRaw(); return }
+        follow = emptyList(); prevWord = null
         val now = SystemClock.uptimeMillis()
         if (composing.isEmpty() && prefs.doubleSpace && field == Field.TEXT && now - lastSpace < 600) {
             val before = ic.getTextBeforeCursor(2, 0)
@@ -320,7 +402,9 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
 
     private fun enter() {
         val ic = currentInputConnection ?: return
+        lastDeleted = null
         if (typingChinese() && composing.isNotEmpty()) { commitRaw(); return }
+        follow = emptyList(); prevWord = null
         finishWord(fix = false)
         val info = currentInputEditorInfo
         val opts = info?.imeOptions ?: 0
@@ -340,19 +424,23 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
             else { if (composing.isEmpty()) ic.commitText("", 1) else ic.setComposingText(composing, 1); updateBar() }
             return
         }
+        follow = emptyList(); prevWord = null
         val fix = lastFix
         // Only while the fixed word and its space are still right before the cursor (the cursor may have been moved since).
         if (!repeat && fix != null && ic.getTextBeforeCursor(fix.second.length + 1, 0)?.toString() == fix.second + " ") {
-            // Backspace right after a fix gives back what was typed.
+            // Backspace right after a fix gives back what was typed; taking the word back says it is a word: it is learned.
             ic.deleteSurroundingText(fix.second.length + 1, 0)
             ic.commitText(fix.first, 1)
-            // Taking the word back is saying it is a word: it is learned, and not fixed again.
             if (prefs.learn) Engines.english?.learn(fix.first)
             lastFix = null; updateBar(); return
         }
         lastFix = null; autoSpace = false
         val selected = ic.getSelectedText(0)
-        if (!selected.isNullOrEmpty()) ic.commitText("", 1) else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+        if (!selected.isNullOrEmpty()) { ic.commitText("", 1); lastDeleted = null }
+        else {
+            if (!repeat) lastDeleted = ic.getTextBeforeCursor(1, 0)?.toString()
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+        }
         if (!repeat) autoCaps()
         updateBar()
     }
@@ -362,10 +450,16 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     private fun showPinyin() {
         val ic = currentInputConnection ?: return
         val eng = Engines.pinyin
-        // The letters stay in the text, cut into the syllables they were read as.
-        val shown = eng?.split(composing.toString())?.joinToString("'") ?: composing.toString()
-        ic.setComposingText(shown, 1)
-        pinyin = eng?.candidates(composing.toString(), 120) ?: emptyList()
+        if (shuangpin()) {
+            val pieces = Engines.shuangpin?.decode(composing.toString()) ?: emptyList()
+            ic.setComposingText(pieces.joinToString("'").ifEmpty { composing.toString() }, 1)
+            pinyin = eng?.candidatesFor(pieces, 120, prevWord)?.map { it.copy(letters = Engines.shuangpin!!.consumed(composing.toString(), it.pieces)) } ?: emptyList()
+        } else {
+            // The letters stay in the text, cut into the syllables they were read as.
+            pinyin = eng?.candidates(composing.toString(), 120, prevWord) ?: emptyList()
+            val shown = eng?.split(composing.toString())?.joinToString("'") ?: composing.toString()
+            ic.setComposingText(shown, 1)
+        }
         updateBar()
         if (panel == Panel.CANDIDATES) openCandidates()
     }
@@ -374,18 +468,29 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     private fun commitPinyin(c: Candidate, all: Boolean) {
         val ic = currentInputConnection ?: return
         val eng = Engines.pinyin
-        val used = if (all || eng == null) composing.length else eng.consumed(composing.toString(), c.pieces)
+        val used = if (all) composing.length else (if (c.letters > 0) c.letters else eng?.consumed(composing.toString(), c.pieces) ?: composing.length)
+        val rest = composing.substring(minOf(used, composing.length))
+        // One edit for the editor: the choice and the rest of the Pinyin together, so the cursor moves once and the rest is kept.
+        ic.beginBatchEdit()
         ic.commitText(c.text, 1)
-        if (prefs.learn) eng?.learn(c.text)
-        val rest = composing.substring(used)
         composing.clear()
-        if (!all && rest.isNotEmpty()) { composing.append(rest); showPinyin() }
-        else { pinyin = emptyList(); closePanel(); updateBar() }
+        if (!all && rest.isNotEmpty()) composing.append(rest)
+        if (composing.isNotEmpty()) ic.setComposingText(composing, 1)
+        ic.endBatchEdit()
+        if (prefs.learn) { eng?.learn(c.text); prevWord?.let { eng?.learnPair(it, c.text) } }
+        prevWord = c.text
+        if (composing.isNotEmpty()) { showPinyin(); return }
+        pinyin = emptyList()
+        follow = eng?.follow(c.text) ?: emptyList()
+        if (panel == Panel.CANDIDATES) closePanel()
+        updateBar()
     }
 
     private fun commitRaw() {
         currentInputConnection?.commitText(composing.toString(), 1)
-        composing.clear(); pinyin = emptyList(); closePanel(); updateBar()
+        composing.clear(); pinyin = emptyList(); follow = emptyList(); prevWord = null
+        if (panel == Panel.CANDIDATES) closePanel()
+        updateBar()
     }
 
     // --- English ----------------------------------------------------------------------------------------------------
@@ -411,9 +516,12 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
 
     private fun updateBar() {
         val b = bar ?: return
+        if (panel == Panel.VOICE) return
         when {
             field == Field.PASSWORD || field == Field.NUMBER || field == Field.PHONE -> b.setWords(emptyList())
-            typingChinese() && composing.isNotEmpty() -> b.setWords(shownPinyin().take(if (panel == Panel.CANDIDATES) 7 else 40).map { it.text }, expandable = pinyin.size > 1, expanded = panel == Panel.CANDIDATES)
+            typingChinese() && composing.isNotEmpty() ->
+                b.setWords(shownPinyin().take(if (panel == Panel.CANDIDATES) 7 else 40).map { it.text }, expandable = pinyin.size > 1, expanded = panel == Panel.CANDIDATES)
+            typingChinese() && follow.isNotEmpty() -> b.setWords(follow)
             composing.isNotEmpty() && field == Field.TEXT -> {
                 val typed = composing.toString()
                 val eng = Engines.english
@@ -434,6 +542,16 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     override fun onPick(index: Int) {
         val ic = currentInputConnection ?: return
         if (typingChinese() && composing.isNotEmpty()) { shownPinyin().getOrNull(index)?.let { commitPinyin(it, all = false) }; return }
+        if (typingChinese() && follow.isNotEmpty()) {
+            // A word that comes next: it goes in, is learned after the one before, and what comes after it is offered.
+            val w = follow.getOrNull(index) ?: return
+            ic.commitText(w, 1)
+            val eng = Engines.pinyin
+            if (prefs.learn) prevWord?.let { eng?.learnPair(it, w) }
+            prevWord = w
+            follow = eng?.follow(w) ?: emptyList()
+            updateBar(); return
+        }
         val word = english.getOrNull(index) ?: return
         val typed = composing.toString()
         ic.commitText("$word ", 1)
@@ -444,23 +562,61 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         updateBar()
     }
 
-    override fun onExpand() { if (panel == Panel.CANDIDATES) closePanel() else openCandidates(); updateBar() }
+    override fun onExpand() { if (panel == Panel.CANDIDATES) { closePanel(); updateBar() } else openCandidates() }
+
+    // --- dictation --------------------------------------------------------------------------------------------------
 
     override fun onMic() {
-        val (id, subtype) = voiceIme() ?: return
+        val v = voice ?: Voice(this, this).also { voice = it }
+        if (v.active || panel == Panel.VOICE) { v.stop(); return }
         finishAll()
-        if (Build.VERSION.SDK_INT >= 28) switchInputMethod(id, subtype)
+        openVoice()
+        v.start(if (chineseMode && usesChinese()) "zh-CN" else "en-US")
     }
 
-    /** The phone's voice typing, if one is turned on: the microphone switches to it, as the phone's keyboard does. */
-    private fun voiceIme(): Pair<String, android.view.inputmethod.InputMethodSubtype>? {
-        if (Build.VERSION.SDK_INT < 28) return null
-        val imm = getSystemService(InputMethodManager::class.java) ?: return null
-        for (info in imm.enabledInputMethodList) {
-            if (info.packageName == packageName) continue
-            for (st in imm.getEnabledInputMethodSubtypeList(info, true)) if (st.mode == "voice") return info.id to st
+    override fun onVoiceState(state: Voice.State) {
+        val b = bar ?: return
+        when (state) {
+            Voice.State.LISTENING -> b.setVoice(getString(R.string.voice_listening))
+            Voice.State.THINKING -> b.setVoice(getString(R.string.voice_thinking))
+            Voice.State.NO_PERMISSION -> b.setVoice(getString(R.string.voice_permission))
+            Voice.State.UNAVAILABLE -> b.setVoice(getString(R.string.voice_unavailable))
+            Voice.State.ERROR -> b.setVoice(getString(R.string.voice_error))
+            Voice.State.STOPPED -> { currentInputConnection?.finishComposingText(); b.setVoice(null); closePanel(); updateBar() }
         }
-        return null
+    }
+
+    override fun onPartial(text: String) { currentInputConnection?.setComposingText(text, 1) }
+
+    override fun onFinal(text: String) { currentInputConnection?.commitText(text, 1) }
+
+    private fun openVoice() {
+        val vp = voicePanel ?: return
+        val kb = keyboard ?: return
+        panel = Panel.VOICE
+        vp.layoutParams = vp.layoutParams.apply { height = kb.height.coerceAtLeast(1) }
+        val chinese = chineseMode && usesChinese()
+        vp.setItems(listOf(
+            VoicePanel.Item(glyph = Glyph.BACKSPACE, repeat = true),
+            VoicePanel.Item(label = if (chinese) "，" else ","),
+            VoicePanel.Item(label = getString(R.string.voice_space)),
+            VoicePanel.Item(glyph = Glyph.ENTER),
+            VoicePanel.Item(label = if (chinese) Mode.CHINESE.key else Mode.ENGLISH.key),
+        ))
+        vp.onClick = { i ->
+            val ic = currentInputConnection
+            when (i) {
+                0 -> { ic?.finishComposingText(); if (prefs.sound) sounds?.delete(); backspace(false) }
+                1 -> { ic?.finishComposingText(); ic?.commitText(if (chinese) "，" else ",", 1) }
+                2 -> { ic?.finishComposingText(); ic?.commitText(" ", 1) }
+                3 -> { ic?.finishComposingText(); enter() }
+                4 -> { voice?.stop(); setChinese(!chineseMode); onMic() }
+            }
+        }
+        vp.visibility = View.VISIBLE
+        kb.visibility = View.INVISIBLE
+        panelBox?.visibility = View.GONE
+        bar?.setVoice(getString(R.string.voice_listening))
     }
 
     // --- panels -----------------------------------------------------------------------------------------------------
@@ -473,6 +629,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         buttons?.visibility = if (p == Panel.CANDIDATES) View.GONE else View.VISIBLE
         if (p != Panel.CANDIDATES) side?.visibility = View.GONE
         box.visibility = View.VISIBLE
+        voicePanel?.visibility = View.GONE
         kb.visibility = View.INVISIBLE
     }
 
@@ -481,6 +638,8 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         panel = Panel.NONE
         singles = false
         panelBox?.visibility = View.GONE
+        voicePanel?.visibility = View.GONE
+        bar?.setVoice(null)
         keyboard?.visibility = View.VISIBLE
     }
 
@@ -495,8 +654,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         val g = grid ?: return
         val b = bar ?: return
         panel = Panel.CANDIDATES
-        val list = shownPinyin()
-        val rest = list.drop(7)
+        val rest = shownPinyin().drop(7)
         g.setItems(rest.map { it.text }, 7, 0.36f, cell = b.gridCell, pad = b.gridPad, row = b.height * 1.1f)
         g.onTopItem = null
         g.onPick = { i -> rest.getOrNull(i)?.let { commitPinyin(it, all = false) } }
@@ -516,7 +674,6 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         }
         val all = emoji.flatMap { it.items }
         g.setItems(all, 8, 0.55f)
-        g.onTopItem = null
         g.onPick = { i -> currentInputConnection?.commitText(all[i], 1) }
         val items = listOf(ButtonRow.Item(label = if (mode() == Mode.CHINESE) "拼音" else "abc", weight = 1.4f)) +
             emoji.map { ButtonRow.Item(label = it.tab) } + ButtonRow.Item(glyph = Glyph.BACKSPACE, weight = 1.2f, repeat = true)

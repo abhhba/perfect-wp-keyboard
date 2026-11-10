@@ -11,6 +11,7 @@ import java.util.concurrent.Executors
 object Engines {
     @Volatile var pinyin: PinyinEngine? = null; private set
     @Volatile var english: EnglishEngine? = null; private set
+    @Volatile var shuangpin: Shuangpin.Decoder? = null; private set
     private val worker = Executors.newSingleThreadExecutor()
     private var started = false
 
@@ -20,6 +21,7 @@ object Engines {
         worker.execute {
             val zh = app.assets.open("zh.tsv").bufferedReader().use { PinyinEngine.read(it) }
             readLearned(File(app.filesDir, "learned_zh.tsv"), zh.learned)
+            shuangpin = Shuangpin.Decoder(zh.syllables)
             pinyin = zh
             val en = app.assets.open("en.tsv").bufferedReader().use { EnglishEngine.read(it) }
             readLearned(File(app.filesDir, "learned_en.tsv"), en.learned)

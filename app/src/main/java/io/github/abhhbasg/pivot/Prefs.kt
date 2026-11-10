@@ -16,6 +16,8 @@ class Prefs(context: Context) {
     /** Index into [io.github.abhhbasg.pivot.ui.Palette.accents]. */
     var accent: Int get() = i(ACCENT, 1); set(v) = sp.edit().putInt(ACCENT, v).apply()
     var chinese: Boolean get() = b(CHINESE, true); set(v) = sp.edit().putBoolean(CHINESE, v).apply()
+    /** Microsoft Shuangpin instead of full Pinyin; only in the settings, as on the phone. */
+    var shuangpin: Boolean get() = b(SHUANGPIN, false); set(v) = sp.edit().putBoolean(SHUANGPIN, v).apply()
     var sound: Boolean get() = b(SOUND, true); set(v) = sp.edit().putBoolean(SOUND, v).apply()
     var vibrate: Boolean get() = b(VIBRATE, true); set(v) = sp.edit().putBoolean(VIBRATE, v).apply()
     var preview: Boolean get() = b(PREVIEW, true); set(v) = sp.edit().putBoolean(PREVIEW, v).apply()
@@ -30,6 +32,7 @@ class Prefs(context: Context) {
         const val THEME = "theme"
         const val ACCENT = "accent"
         const val CHINESE = "chinese"
+        const val SHUANGPIN = "shuangpin"
         const val SOUND = "sound"
         const val VIBRATE = "vibrate"
         const val PREVIEW = "preview"

@@ -32,6 +32,8 @@ class CandidateBar(context: Context) : View(context) {
     private var expandable = false
     private var expanded = false
     private var mic = true
+    /** Dictation is on: the microphone on the accent colour, and what it is doing. */
+    private var voice: String? = null
     private var edges = FloatArray(0)
     private var scroll = 0f
     private var pressed = NONE
@@ -44,6 +46,7 @@ class CandidateBar(context: Context) : View(context) {
     private val line = Paint(Paint.ANTI_ALIAS_FLAG)
 
     fun setColors(c: Colors) { colors = c; invalidate() }
+    fun setVoice(status: String?) { voice = status; invalidate() }
     fun setMicAvailable(on: Boolean) { if (mic != on) { mic = on; measureWords(); invalidate() } }
 
     fun setWords(list: List<String>, expandable: Boolean = false, expanded: Boolean = false) {
@@ -89,6 +92,16 @@ class CandidateBar(context: Context) : View(context) {
         canvas.drawColor(c.bar)
         val h = height.toFloat()
         val press = Palette.withAlpha(c.text, 0x26)
+        voice?.let { status ->
+            val mw = h * 1.15f
+            fill.color = c.accent; canvas.drawRect(0f, 0f, mw, h, fill)
+            Glyphs.draw(canvas, Glyph.MIC, mw / 2f, h / 2f, h * 0.42f, c.onAccent, line)
+            style(); text.textAlign = Paint.Align.LEFT; text.color = c.text
+            val m = text.fontMetrics
+            canvas.drawText(status, mw + h * 0.3f, h / 2f - (m.ascent + m.descent) / 2f, text)
+            text.textAlign = Paint.Align.CENTER
+            return
+        }
         if (micWidth() > 0f) {
             if (pressed == MIC) { fill.color = press; canvas.drawRect(0f, 0f, micWidth(), h, fill) }
             Glyphs.draw(canvas, Glyph.MIC, micWidth() / 2f, h / 2f, h * 0.42f, c.text, line)
@@ -114,6 +127,7 @@ class CandidateBar(context: Context) : View(context) {
     }
 
     private fun indexAt(x: Float): Int {
+        if (voice != null) return if (x < height * 1.15f) MIC else NONE
         if (x < micWidth()) return MIC
         if (arrowWidth() > 0f && x >= width - arrowWidth()) return ARROW
         val at = x - start() + scroll

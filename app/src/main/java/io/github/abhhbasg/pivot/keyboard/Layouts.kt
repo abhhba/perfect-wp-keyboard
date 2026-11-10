@@ -16,6 +16,10 @@ class Key(
     val columns: Int = 0,
     /** The tile picked when the bar opens, before the finger moves. */
     val initial: Int = 0,
+    /** Small text on the key: the finals of a Shuangpin key. */
+    val hint: String? = null,
+    /** Drawn as a function key (the ing key of Shuangpin takes the place and look of shift). */
+    val fn: Boolean = false,
 ) {
     var left = 0f; var top = 0f; var right = 0f; var bottom = 0f
     /** Where a touch still counts as this key: the key and, at the ends of a row that is set in, the room up to the edge. */
@@ -76,18 +80,23 @@ object Layouts {
         add(Key(Kind.ENTER, units = 1.5f))
     }
 
-    /** The letters: every key as wide as the others, the second row set in by half a key, shift and backspace a key and a half. */
-    fun letters(mode: Mode?, web: Boolean): Page {
+    /**
+     * The letters: every key as wide as the others, the second row set in by half a key, shift and backspace a key and a half.
+     * For Shuangpin ([shuangpin] and Chinese) the keys show their finals and shift becomes the ing key (;).
+     */
+    fun letters(mode: Mode?, web: Boolean, shuangpin: Boolean = false): Page {
+        val sp = shuangpin && mode == Mode.CHINESE
         fun row(s: String, first: Boolean) = s.map { ch ->
             val l = ch.toString()
             // Holding a key of the first row gives its digit first; the other keys offer their accents.
-            val list = listOfNotNull(if (first) digits[s.indexOf(ch)].toString() else null) + accents[l]?.split(' ').orEmpty()
-            Key(Kind.CHAR, l, popup = if (list.isEmpty()) emptyList() else list + l)
+            val list = listOfNotNull(if (first) digits[s.indexOf(ch)].toString() else null) + (if (sp) emptyList() else accents[l]?.split(' ').orEmpty())
+            Key(Kind.CHAR, l, popup = if (list.isEmpty()) emptyList() else list + l, hint = if (sp) io.github.abhhbasg.pivot.engine.Shuangpin.hints[ch] else null)
         }
+        val first = if (sp) Key(Kind.CHAR, ";", 1.5f, label = "ing", fn = true) else Key(Kind.SHIFT, units = 1.5f)
         return Page(listOf(
             row("qwertyuiop", true),
             row("asdfghjkl", false),
-            listOf(Key(Kind.SHIFT, units = 1.5f)) + row("zxcvbnm", false) + Key(Kind.BACKSPACE, units = 1.5f),
+            listOf(first) + row("zxcvbnm", false) + Key(Kind.BACKSPACE, units = 1.5f),
             bottom(Key(Kind.SYMBOLS, label = "&123", units = 1.5f), mode, web),
         ))
     }

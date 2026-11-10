@@ -48,6 +48,17 @@
     <string name="choose">choose</string>
 
     <string name="about_version">Version %1$s</string>
-    <string name="about_text">A keyboard in the manner of Windows 10 Mobile for Android: Chinese Pinyin and English.\n\nFree software under the Apache License 2.0.</string>
-    <string name="about_credits">Word lists from the Android Open Source Project (PinyinIME and LatinIME), Apache License 2.0. The Selawik typeface by Microsoft, SIL Open Font License 1.1.</string>
+    <string name="about_text">Chinese and English, the Windows 10 Mobile way.</string>
+    <string name="about_credits">Apache License 2.0 · Words: AOSP, jieba, mozillazg · Font: Selawik</string>
+
+    <string name="scheme">Pinyin</string>
+    <string name="scheme_full">Full Pinyin</string>
+    <string name="scheme_shuangpin">Microsoft Shuangpin</string>
+
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_thinking">Working…</string>
+    <string name="voice_permission">Allow the microphone, then tap it again</string>
+    <string name="voice_unavailable">No speech recognition on this phone</string>
+    <string name="voice_error">Didn\'t catch that. Tap the microphone to try again</string>
+    <string name="voice_space">space</string>
 </resources>

@@ -242,3 +242,65 @@ class SidePanel(context: Context) : View(context) {
         return true
     }
 }
+
+/**
+ * In place of the keys while dictating, as on the phone: the room on the left left empty, and on the right a column of the keys
+ * still wanted: backspace, the comma, space, enter and the language.
+ */
+class VoicePanel(context: Context) : View(context) {
+    class Item(val label: String? = null, val glyph: Glyph? = null, val repeat: Boolean = false)
+
+    var onClick: ((Int) -> Unit)? = null
+    private var colors: Colors? = null
+    private var items: List<Item> = emptyList()
+    private var pressed = -1
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val line = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val repeater = object : Runnable {
+        override fun run() { if (pressed >= 0) { onClick?.invoke(pressed); postDelayed(this, 70L) } }
+    }
+
+    fun setColors(c: Colors) { colors = c; invalidate() }
+    fun setItems(list: List<Item>) { items = list; invalidate() }
+
+    private val gap get() = maxOf(context.dp(3f), width / 94f)
+    private fun colLeft() = width - width * 0.15f - gap
+    private fun cellH() = (height - gap) / items.size.coerceAtLeast(1)
+
+    override fun onDraw(canvas: Canvas) {
+        val c = colors ?: return
+        canvas.drawColor(c.background)
+        val l = colLeft(); val r = width - gap; val ch = cellH()
+        items.forEachIndexed { i, it ->
+            val t = gap + i * ch; val b = t + ch - gap
+            fill.color = if (i == pressed) c.accent else c.function
+            canvas.drawRect(l, t, r, b, fill)
+            val fg = if (i == pressed) c.onAccent else c.text
+            if (it.glyph != null) Glyphs.draw(canvas, it.glyph, (l + r) / 2f, (t + b) / 2f, (b - t) * 0.4f, fg, line)
+            else it.label?.let { s ->
+                text.color = fg; text.textSize = (b - t) * 0.36f; text.typeface = Fonts.semilight(context)
+                val m = text.fontMetrics
+                canvas.drawText(s, (l + r) / 2f, (t + b) / 2f - (m.ascent + m.descent) / 2f, text)
+            }
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        val i = if (e.x >= colLeft()) ((e.y - gap) / cellH()).toInt().coerceIn(0, items.size - 1) else -1
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pressed = i; invalidate()
+                if (i >= 0 && items[i].repeat) { onClick?.invoke(i); postDelayed(repeater, 400L) }
+            }
+            MotionEvent.ACTION_UP -> {
+                removeCallbacks(repeater)
+                if (i >= 0 && i == pressed && !items[i].repeat) onClick?.invoke(i)
+                pressed = -1; invalidate()
+            }
+            MotionEvent.ACTION_CANCEL -> { removeCallbacks(repeater); pressed = -1; invalidate() }
+        }
+        return true
+    }
+}

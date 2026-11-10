@@ -30,6 +30,8 @@ interface KeyListener {
     fun onHold(key: Key)
     /** The cursor knob was dragged: move the cursor with this arrow key. */
     fun onArrow(keyCode: Int)
+    /** The finger slid up from backspace (clear the text) or down (bring it back). */
+    fun onBackspaceSwipe(up: Boolean)
 }
 
 /**
@@ -57,6 +59,8 @@ class KeyboardView(context: Context) : View(context) {
         var moved = false
         var held = false
         var knob = false
+        /** Slid from backspace: 1 up, -1 down. */
+        var swipe = 0
         var ax = x0; var ay = y0
         var timer: Runnable? = null
     }
@@ -134,10 +138,10 @@ class KeyboardView(context: Context) : View(context) {
         else if (preview) for (t in touches.values) if (!t.moved && !t.knob) t.key?.let { if (it.kind == Kind.CHAR) drawPreview(canvas, it, c) }
     }
 
-    private fun isFunction(k: Key) = k.kind == Kind.SHIFT || k.kind == Kind.BACKSPACE || k.kind == Kind.SYMBOLS || k.kind == Kind.LETTERS ||
+    private fun isFunction(k: Key) = k.fn || k.kind == Kind.SHIFT || k.kind == Kind.BACKSPACE || k.kind == Kind.SYMBOLS || k.kind == Kind.LETTERS ||
         k.kind == Kind.MORE_SYMBOLS || k.kind == Kind.LANGUAGE
 
-    private fun pressed(k: Key) = touches.values.any { it.key === k && !it.knob && (it.tiles == null || it.tiles === k) }
+    private fun pressed(k: Key) = touches.values.any { it.key === k && !it.knob && it.swipe == 0 && (it.tiles == null || it.tiles === k) }
 
     private fun drawKey(canvas: Canvas, k: Key, c: Colors) {
         val down = pressed(k)
@@ -158,10 +162,15 @@ class KeyboardView(context: Context) : View(context) {
         val h = k.height
         when (k.kind) {
             Kind.CHAR -> {
-                val s = if (shift != 0) k.label.uppercase() else k.label
+                val s = if (shift != 0 && !k.fn) k.label.uppercase() else k.label
                 // The phone sets the comma and the full stop low, where they sit in a line of text.
                 val low = s == "." || s == ","
-                label(canvas, s, k.cx, if (low) k.cy + h * 0.06f else k.cy, h * if (s.length > 1) 0.3f else 0.4f, fg)
+                val hint = k.hint
+                if (hint != null) {
+                    // A Shuangpin key: the letter a little up, its finals small under it.
+                    label(canvas, s, k.cx, k.cy - h * 0.1f, h * 0.36f, fg)
+                    label(canvas, hint, k.cx, k.bottom - h * 0.17f, h * 0.17f, if (down) fg else c.subtle)
+                } else label(canvas, s, k.cx, if (low) k.cy + h * 0.06f else k.cy, h * if (s.length > 1) 0.3f else 0.4f, fg)
             }
             Kind.SHIFT -> Glyphs.draw(canvas, if (shift == 2) Glyph.CAPS_LOCK else Glyph.SHIFT, k.cx, k.cy, h * 0.3f, fg, line)
             Kind.BACKSPACE -> Glyphs.draw(canvas, Glyph.BACKSPACE, k.cx, k.cy, h * 0.36f, fg, line)
@@ -294,7 +303,7 @@ class KeyboardView(context: Context) : View(context) {
             val r = object : Runnable {
                 var delay = 400L
                 override fun run() {
-                    if (touches[id] !== t) return
+                    if (touches[id] !== t || t.swipe != 0) return
                     listener?.onRepeat(k)
                     delay = maxOf(40L, (delay * 0.8).toLong())
                     postDelayed(this, delay)
@@ -340,7 +349,13 @@ class KeyboardView(context: Context) : View(context) {
             if (i != t.tile && tk.popup[i].isNotEmpty()) { t.tile = i; invalidate() }
             return
         }
-        if (t.start?.kind == Kind.BACKSPACE) return
+        if (t.start?.kind == Kind.BACKSPACE) {
+            // Sliding up from backspace clears the text, down brings it back.
+            val dy = y - t.y0
+            val s = when { dy < -t.start.height * 0.8f -> 1; dy > t.start.height * 0.8f -> -1; else -> 0 }
+            if (s != t.swipe) { t.swipe = s; if (s != 0) t.timer?.let { removeCallbacks(it) }; invalidate() }
+            return
+        }
         val k = keyAt(x, y)
         if (k !== t.key && hypot(x - t.x0, y - t.y0) > context.dp(8f)) { t.key = k; t.moved = true; t.timer?.let { removeCallbacks(it) }; invalidate() }
     }
@@ -353,7 +368,7 @@ class KeyboardView(context: Context) : View(context) {
             t.knob -> {}
             tk != null -> tk.popup.getOrNull(t.tile)?.takeIf { it.isNotEmpty() }?.let { listener?.onKey(tk, it) }
             t.held -> {}
-            t.start?.kind == Kind.BACKSPACE -> {}
+            t.start?.kind == Kind.BACKSPACE -> if (t.swipe != 0) listener?.onBackspaceSwipe(t.swipe > 0)
             else -> (t.key ?: keyAt(x, y))?.let { listener?.onKey(it, it.text) }
         }
         invalidate()

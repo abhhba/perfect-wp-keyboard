@@ -114,6 +114,8 @@ class SettingsActivity : Activity() {
 
         addView(m.heading(getString(R.string.group_words)))
         addView(m.toggle(getString(R.string.chinese), getString(R.string.chinese_summary), { p.chinese }) { p.chinese = it })
+        addView(m.combo(getString(R.string.scheme), listOf(getString(R.string.scheme_full), getString(R.string.scheme_shuangpin)),
+            { if (p.shuangpin) 1 else 0 }) { p.shuangpin = it == 1 })
         addView(m.toggle(getString(R.string.auto_correct), get = { p.autoCorrect }) { p.autoCorrect = it })
         addView(m.toggle(getString(R.string.learn), get = { p.learn }) { p.learn = it })
         addView(m.button(getString(R.string.forget)) {
@@ -126,11 +128,12 @@ class SettingsActivity : Activity() {
 
     // --- about ------------------------------------------------------------------------------------------------------
 
+    /** The name, the version, one line, and where the parts come from: nothing more. */
     private fun aboutPage(): View = m.column().apply {
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         addView(m.text(getString(R.string.app_name), 26f, m.fg, 0))
-        addView(m.text(getString(R.string.about_version, version), 14f, m.subtle).apply { setPadding(0, m.px(4f), 0, m.px(16f)) })
-        addView(m.text(getString(R.string.about_text), 16f).apply { setLineSpacing(0f, 1.2f) })
-        addView(m.text(getString(R.string.about_credits), 14f, m.subtle).apply { setPadding(0, m.px(20f), 0, 0); setLineSpacing(0f, 1.2f) })
+        addView(m.text(getString(R.string.about_version, version), 14f, m.subtle).apply { setPadding(0, m.px(4f), 0, m.px(14f)) })
+        addView(m.text(getString(R.string.about_text), 16f))
+        addView(m.text(getString(R.string.about_credits), 12f, m.subtle).apply { setPadding(0, m.px(28f), 0, 0) })
     }
 }

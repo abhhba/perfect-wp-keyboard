@@ -48,6 +48,17 @@
     <string name="choose">选择</string>
 
     <string name="about_version">版本 %1$s</string>
-    <string name="about_text">一款 Windows 10 Mobile 风格的 Android 键盘：中文拼音和英文。\n\n自由软件，采用 Apache License 2.0 许可证。</string>
-    <string name="about_credits">词库来自 Android 开源项目（PinyinIME 和 LatinIME），Apache License 2.0。字体为微软的 Selawik，SIL Open Font License 1.1。</string>
+    <string name="about_text">Windows 10 Mobile 风格的中英文键盘。</string>
+    <string name="about_credits">Apache License 2.0 · 词库：AOSP、jieba、mozillazg · 字体：Selawik</string>
+
+    <string name="scheme">拼音方案</string>
+    <string name="scheme_full">全拼</string>
+    <string name="scheme_shuangpin">微软双拼</string>
+
+    <string name="voice_listening">正在聆听…</string>
+    <string name="voice_thinking">正在识别…</string>
+    <string name="voice_permission">请允许使用麦克风，然后再点一次</string>
+    <string name="voice_unavailable">此手机没有语音识别</string>
+    <string name="voice_error">没听清，点麦克风再试一次</string>
+    <string name="voice_space">空格</string>
 </resources>

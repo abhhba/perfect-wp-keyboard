@@ -47,6 +47,22 @@ class EnginesTest {
         assertEquals(second, zh.candidates("shi")[0].text)
     }
 
+    @Test fun readsMicrosoftShuangpin() {
+        val sp = io.github.abhhbasg.pivot.engine.Shuangpin.Decoder(zh.syllables)
+        assertEquals(listOf("ni", "hao"), sp.decode("nihk"))
+        assertEquals(listOf("zhong", "guo"), sp.decode("vsgo"))
+        assertEquals(listOf("ying", "an"), sp.decode("y;oj"))
+        assertEquals(listOf("shuang", "x"), sp.decode("udx"))
+        assertEquals("你好", zh.candidatesFor(sp.decode("nihk")).first().text)
+        assertEquals("我们", zh.candidatesFor(sp.decode("womf")).first().text)
+    }
+
+    @Test fun offersWhatComesNext() {
+        assertTrue(zh.follow("中").contains("国"))
+        zh.learnPair("你好", "世界")
+        assertEquals("世界", zh.follow("你好").first())
+    }
+
     @Test fun finishesAndFixesEnglish() {
         assertTrue(en.completions("hel", 8).contains("hello"))
         assertEquals("the", en.correction("teh"))
