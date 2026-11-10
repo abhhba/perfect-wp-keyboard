@@ -5,54 +5,59 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.RectF
 import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import io.github.abhhbasg.pivot.ui.Colors
 import io.github.abhhbasg.pivot.ui.Fonts
 import io.github.abhhbasg.pivot.ui.Glyph
 import io.github.abhhbasg.pivot.ui.Glyphs
+import io.github.abhhbasg.pivot.ui.Palette
 import io.github.abhhbasg.pivot.ui.dp
 import kotlin.math.abs
+import kotlin.math.hypot
 
 /** What the keys tell the input method. */
 interface KeyListener {
     /** A finger went down on [key]: click and vibrate. */
     fun onDown(key: Key)
-    /** [key] was typed; [text] is what to type (the key's own, or the one picked from the bar of a held key), not yet in capitals. */
+    /** [key] was typed; [text] is what to type (the key's own, or the tile picked from a held key), not yet in capitals. */
     fun onKey(key: Key, text: String)
     /** Backspace held: called again for every repeat. */
     fun onRepeat(key: Key)
-    /** The finger slid along the space bar: move the cursor by [steps]. */
-    fun onCursor(steps: Int)
+    /** A key without tiles was held: &123 opens the emoji. */
+    fun onHold(key: Key)
+    /** The cursor knob was dragged: move the cursor with this arrow key. */
+    fun onArrow(keyCode: Int)
 }
 
 /**
- * The keys of the keyboard, drawn and touched. One view for the whole page: it lays the rows out, paints them in the
- * Windows 10 Mobile manner and turns touches into keys, held-key bars, repeats and cursor moves. Several fingers can type at once.
+ * The keys, drawn and touched as on screenshots of a Windows 10 Mobile phone. One view for the whole page: it lays the rows out,
+ * paints them, and turns touches into keys, held-key tiles, repeats and the cursor knob. Several fingers can type at once.
  */
 class KeyboardView(context: Context) : View(context) {
     var listener: KeyListener? = null
-    private var page: Page = Layouts.letters(null)
+    private var page: Page = Layouts.letters(null, false)
     private var colors: Colors? = null
     private var shift = 0
     private var enter = Glyph.ENTER
     private var preview = true
     private var heightPct = 100
+    private var knob = true
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val line = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val rect = RectF()
 
-    private class Touch(val id: Int, val start: Key, val x0: Float) {
+    private class Touch(val id: Int, val start: Key?, val x0: Float, val y0: Float) {
         var key: Key? = start
-        var bar: Key? = null
-        var barIndex = 0
-        var cursorX = x0
+        var tiles: Key? = null
+        var tile = 0
         var moved = false
         var held = false
+        var knob = false
+        var ax = x0; var ay = y0
         var timer: Runnable? = null
     }
     private val touches = HashMap<Int, Touch>()
@@ -63,18 +68,21 @@ class KeyboardView(context: Context) : View(context) {
     fun setEnter(g: Glyph) { if (enter != g) { enter = g; invalidate() } }
     fun setPreview(on: Boolean) { preview = on }
     fun setHeightPct(p: Int) { if (heightPct != p) { heightPct = p; requestLayout() } }
-    val currentPage get() = page
+    /** The cursor knob, on the letters and the signs; not on the number pads. */
+    fun setKnob(on: Boolean) { if (knob != on) { knob = on; invalidate() } }
 
     private fun rowHeight(): Float {
         val land = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        return context.dp(if (land) 40f else 54f) * heightPct / 100f
+        return context.dp(if (land) 40f else 56f) * heightPct / 100f
     }
 
-    private val gap get() = context.dp(4f)
+    /** The gap between keys: a ninetieth of the width, as on the phone. */
+    private val gap get() = maxOf(context.dp(3f), width / 94f)
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val h = page.rows.size * rowHeight() + gap
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), h.toInt())
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        val g = maxOf(context.dp(3f), w / 94f)
+        setMeasuredDimension(w, (page.rows.size * rowHeight() + g).toInt())
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) = layoutKeys()
@@ -82,16 +90,17 @@ class KeyboardView(context: Context) : View(context) {
     /** Ten letter widths across; a shorter row is centred, and its end keys also take the room beside them. */
     private fun layoutKeys() {
         if (width == 0 || height == 0) return
-        val unit = (width - gap) / 10f
-        val rowH = (height - gap) / page.rows.size
+        val g = gap
+        val unit = (width - g) / 10f
+        val rowH = (height - g) / page.rows.size
         page.rows.forEachIndexed { r, row ->
             val total = row.sumOf { it.units.toDouble() }.toFloat() * unit
-            var x = gap / 2f + (width - gap - total) / 2f
-            val top = gap + r * rowH
+            var x = g / 2f + (width - g - total) / 2f
+            val top = g + r * rowH
             row.forEachIndexed { i, k ->
                 val w = k.units * unit
-                k.left = x + gap / 2f; k.right = x + w - gap / 2f
-                k.top = top; k.bottom = top + rowH - gap
+                k.left = x + g / 2f; k.right = x + w - g / 2f
+                k.top = top; k.bottom = top + rowH - g
                 k.hitLeft = if (i == 0) 0f else x
                 k.hitRight = if (i == row.lastIndex) width.toFloat() else x + w
                 x += w
@@ -99,21 +108,36 @@ class KeyboardView(context: Context) : View(context) {
         }
     }
 
+    // --- the cursor knob --------------------------------------------------------------------------------------------
+
+    /** Where the knob sits: between z and x, on the line between the last two rows. */
+    private fun knobCenter(): Pair<Float, Float>? {
+        if (!knob || page.rows.size < 4) return null
+        val z = page.rows[2].getOrNull(1) ?: return null
+        val below = page.rows[3].firstOrNull() ?: return null
+        return (z.right + gap / 2f) to (z.bottom + below.top) / 2f
+    }
+    private val knobRadius get() = (width / 10f) * 0.31f
+
     // --- painting ---------------------------------------------------------------------------------------------------
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
         canvas.drawColor(c.background)
         for (k in page.keys) drawKey(canvas, k, c)
-        for (t in touches.values) {
-            if (t.bar != null) drawBar(canvas, t, c)
-            else if (preview && !t.moved) t.key?.let { if (it.kind == Kind.CHAR) drawPreview(canvas, it, c) }
-        }
+        val tiles = touches.values.firstOrNull { it.tiles != null }
+        val knobTouch = touches.values.firstOrNull { it.knob }
+        // While tiles are open or the knob is dragged, the rest of the keyboard sinks back.
+        if (tiles != null || knobTouch != null) canvas.drawColor(Palette.withAlpha(0xFF000000.toInt(), 0x80))
+        drawKnob(canvas, c, knobTouch != null)
+        if (tiles != null) drawTiles(canvas, tiles, c)
+        else if (preview) for (t in touches.values) if (!t.moved && !t.knob) t.key?.let { if (it.kind == Kind.CHAR) drawPreview(canvas, it, c) }
     }
 
-    private fun isFunction(k: Key) = k.kind != Kind.CHAR && k.kind != Kind.SPACE && k.kind != Kind.ENTER
+    private fun isFunction(k: Key) = k.kind == Kind.SHIFT || k.kind == Kind.BACKSPACE || k.kind == Kind.SYMBOLS || k.kind == Kind.LETTERS ||
+        k.kind == Kind.MORE_SYMBOLS || k.kind == Kind.LANGUAGE
 
-    private fun pressed(k: Key) = touches.values.any { it.key === k && it.bar == null && !(k.kind == Kind.SPACE && it.moved) }
+    private fun pressed(k: Key) = touches.values.any { it.key === k && !it.knob && (it.tiles == null || it.tiles === k) }
 
     private fun drawKey(canvas: Canvas, k: Key, c: Colors) {
         val down = pressed(k)
@@ -133,26 +157,31 @@ class KeyboardView(context: Context) : View(context) {
         canvas.drawRect(k.left, k.top, k.right, k.bottom, fill)
         val h = k.height
         when (k.kind) {
-            Kind.CHAR -> label(canvas, if (shift != 0) k.label.uppercase() else k.label, k.cx, k.cy, h * if (k.label.length > 1) 0.3f else 0.42f, fg)
-            Kind.SHIFT -> Glyphs.draw(canvas, if (shift == 2) Glyph.CAPS_LOCK else Glyph.SHIFT, k.cx, k.cy, h * 0.34f, fg, line)
-            Kind.BACKSPACE -> Glyphs.draw(canvas, Glyph.BACKSPACE, k.cx, k.cy, h * 0.42f, fg, line)
-            Kind.ENTER -> Glyphs.draw(canvas, enter, k.cx, k.cy, h * 0.38f, fg, line)
-            Kind.EMOJI -> Glyphs.draw(canvas, Glyph.SMILEY, k.cx, k.cy, h * 0.42f, fg, line)
-            Kind.SPACE -> {}
-            Kind.MODE -> label(canvas, k.label, k.cx, k.cy, h * 0.36f, fg)
-            Kind.SYMBOLS, Kind.LETTERS, Kind.MORE_SYMBOLS -> {
-                label(canvas, k.label, k.cx, k.cy, h * 0.3f, fg)
-                if (k.kind == Kind.SYMBOLS) {
-                    // The three small dots in the corner of the phone's &123.
-                    fill.color = Palette_subtle(c, down)
-                    val r = h * 0.022f
-                    for (i in 0 until 3) canvas.drawCircle(k.left + h * 0.13f + i * r * 3.4f, k.top + h * 0.14f, r, fill)
-                }
+            Kind.CHAR -> {
+                val s = if (shift != 0) k.label.uppercase() else k.label
+                // The phone sets the comma and the full stop low, where they sit in a line of text.
+                val low = s == "." || s == ","
+                label(canvas, s, k.cx, if (low) k.cy + h * 0.06f else k.cy, h * if (s.length > 1) 0.3f else 0.4f, fg)
+            }
+            Kind.SHIFT -> Glyphs.draw(canvas, if (shift == 2) Glyph.CAPS_LOCK else Glyph.SHIFT, k.cx, k.cy, h * 0.3f, fg, line)
+            Kind.BACKSPACE -> Glyphs.draw(canvas, Glyph.BACKSPACE, k.cx, k.cy, h * 0.36f, fg, line)
+            Kind.ENTER -> Glyphs.draw(canvas, enter, k.cx, k.cy, h * 0.34f, fg, line)
+            Kind.SPACE -> {
+                // The grip: two short lines at the top.
+                fill.color = Palette.withAlpha(c.text, 0x40)
+                val w = h * 0.26f; val y = k.top + h * 0.12f
+                canvas.drawRect(k.cx - w / 2f, y, k.cx + w / 2f, y + context.dp(1f), fill)
+                canvas.drawRect(k.cx - w / 2f, y + context.dp(3.5f), k.cx + w / 2f, y + context.dp(4.5f), fill)
+            }
+            Kind.LANGUAGE -> label(canvas, k.label, k.cx, k.cy, h * if (k.label.length > 1) 0.24f else 0.3f, fg)
+            Kind.MORE_SYMBOLS -> Glyphs.draw(canvas, Glyph.NEXT_PAGE, k.cx, k.cy, h * 0.3f, fg, line)
+            Kind.SYMBOLS, Kind.LETTERS -> {
+                label(canvas, k.label, k.cx, k.cy + h * 0.05f, h * if (k.kind == Kind.LETTERS && k.label.length <= 2) 0.32f else 0.25f, fg)
+                // The smiley in the corner of &123: holding the key opens the emoji.
+                if (k.kind == Kind.SYMBOLS) Glyphs.draw(canvas, Glyph.SMILEY, k.left + h * 0.18f, k.top + h * 0.18f, h * 0.22f, Palette.withAlpha(fg, 0x99), line)
             }
         }
     }
-
-    private fun Palette_subtle(c: Colors, down: Boolean) = if (down) c.onAccent else c.subtle
 
     private fun label(canvas: Canvas, s: String, cx: Float, cy: Float, size: Float, color: Int) {
         text.color = color
@@ -162,37 +191,67 @@ class KeyboardView(context: Context) : View(context) {
         canvas.drawText(s, cx, cy - (m.ascent + m.descent) / 2f, text)
     }
 
-    /** The letter above the finger, in the accent colour. */
-    private fun drawPreview(canvas: Canvas, k: Key, c: Colors) {
-        val w = maxOf(k.width * 1.3f, context.dp(48f)); val h = k.height * 1.25f
-        val left = (k.cx - w / 2f).coerceIn(0f, width - w)
-        val top = maxOf(0f, k.top - h - context.dp(6f))
+    private fun drawKnob(canvas: Canvas, c: Colors, active: Boolean) {
+        val (x, y) = knobCenter() ?: return
+        val r = knobRadius
+        fill.color = c.background
+        canvas.drawCircle(x, y, r, fill)
         fill.color = c.accent
-        canvas.drawRect(left, top, left + w, top + h, fill)
-        label(canvas, if (shift != 0) k.label.uppercase() else k.label, left + w / 2f, top + h / 2f, h * 0.55f, c.onAccent)
+        canvas.drawCircle(x, y, r * 0.27f, fill)
+        if (active) {
+            // The four arrows the knob moves the cursor by.
+            val d = r * 2.7f; val s = r * 1.3f
+            Glyphs.draw(canvas, Glyph.CHEVRON_UP, x, y - d, s, c.text, line)
+            Glyphs.draw(canvas, Glyph.CHEVRON_DOWN, x, y + d, s, c.text, line)
+            Glyphs.draw(canvas, Glyph.CHEVRON_LEFT, x - d, y, s, c.text, line)
+            Glyphs.draw(canvas, Glyph.CHEVRON_RIGHT, x + d, y, s, c.text, line)
+        }
     }
 
-    private fun barGeometry(t: Touch): FloatArray {
-        val k = t.bar!!
-        val itemW = maxOf(k.width, context.dp(36f))
-        val total = itemW * k.popup.size
-        val left = (k.cx - itemW / 2f - if (k.cx > width * 0.6f) total - itemW else 0f).coerceIn(0f, maxOf(0f, width - total))
-        val h = k.height * 1.1f
-        return floatArrayOf(left, maxOf(0f, k.top - h - context.dp(6f)), itemW, h)
+    /** The letter above the finger: the key and a taller, wider accent tile over the row above it. */
+    private fun drawPreview(canvas: Canvas, k: Key, c: Colors) {
+        val w = k.width * 1.34f; val h = k.height * 1.15f
+        val left = (k.cx - w / 2f).coerceIn(0f, width - w)
+        val bottom = k.top - gap * 0.6f
+        val top = maxOf(0f, bottom - h)
+        fill.color = c.accent
+        canvas.drawRect(left, top, left + w, bottom, fill)
+        label(canvas, if (shift != 0) k.label.uppercase() else k.label, left + w / 2f, (top + bottom) / 2f, k.height * 0.5f, c.onAccent)
     }
 
-    /** The bar of a held key: the choices side by side above it, the one under the finger in the accent colour. */
-    private fun drawBar(canvas: Canvas, t: Touch, c: Colors) {
-        val k = t.bar!!
-        val (left, top, itemW, h) = barGeometry(t).toList()
-        fill.color = c.popup
-        canvas.drawRect(left, top, left + itemW * k.popup.size, top + h, fill)
-        line.style = Paint.Style.STROKE; line.strokeWidth = context.dp(1f); line.color = c.subtle
-        canvas.drawRect(left, top, left + itemW * k.popup.size, top + h, line)
+    /** The grid of tiles of a held key: [left, top, tile width, tile height, columns]. Its bottom row sits just above the key. */
+    private fun tileGeometry(k: Key): FloatArray {
+        val cols = k.gridColumns
+        val rows = (k.popup.size + cols - 1) / cols
+        val unit = (width - gap) / 10f
+        val tw = maxOf(k.width, unit * if (k.kind == Kind.LANGUAGE) 1.45f else 1.2f)
+        val th = k.height * if (k.kind == Kind.LANGUAGE) 1.15f else 1f
+        val total = tw * cols
+        val left = (if (k.cx > width * 0.6f) k.right - total else k.left).coerceIn(0f, maxOf(0f, width - total))
+        val top = maxOf(0f, k.top - gap - rows * th)
+        return floatArrayOf(left, top, tw, th, cols.toFloat())
+    }
+
+    private fun drawTiles(canvas: Canvas, t: Touch, c: Colors) {
+        val k = t.tiles!!
+        val (left, top, tw, th) = tileGeometry(k).toList()
+        val cols = k.gridColumns
+        val onTile = Palette.onColor(c.popup)
+        val g = context.dp(2f)
         k.popup.forEachIndexed { i, s ->
-            val x = left + i * itemW
-            if (i == t.barIndex) { fill.color = c.accent; canvas.drawRect(x, top, x + itemW, top + h, fill) }
-            label(canvas, if (shift != 0) s.uppercase() else s, x + itemW / 2f, top + h / 2f, h * 0.42f, if (i == t.barIndex) c.onAccent else c.text)
+            if (s.isEmpty()) return@forEachIndexed
+            val x = left + (i % cols) * tw; val y = top + (i / cols) * th
+            val sel = i == t.tile
+            fill.color = if (sel) c.accent else c.popup
+            canvas.drawRect(x + g / 2f, y + g / 2f, x + tw - g / 2f, y + th - g / 2f, fill)
+            val fg = if (sel) c.onAccent else onTile
+            when {
+                s == Layouts.SETTINGS -> Glyphs.draw(canvas, Glyph.GEAR, x + tw / 2f, y + th / 2f, th * 0.42f, fg, line)
+                s.contains('\n') -> s.split('\n').let { (a, b) ->
+                    label(canvas, a, x + tw / 2f, y + th * 0.36f, th * 0.24f, fg); label(canvas, b, x + tw / 2f, y + th * 0.66f, th * 0.24f, fg)
+                }
+                else -> label(canvas, if (shift != 0) s.uppercase() else s, x + tw / 2f, y + th / 2f, th * if (s.length > 2) 0.26f else 0.38f, fg)
+            }
         }
     }
 
@@ -200,12 +259,11 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun keyAt(x: Float, y: Float): Key? {
         page.keys.firstOrNull { it.hit(x, y) }?.let { return it }
-        // In a gap between keys: the nearest one, if it is near.
         return page.keys.minByOrNull { k ->
             val dx = if (x < k.left) k.left - x else if (x > k.right) x - k.right else 0f
             val dy = if (y < k.top) k.top - y else if (y > k.bottom) y - k.bottom else 0f
             dx * dx + dy * dy
-        }?.takeIf { y >= 0 }
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -220,8 +278,15 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private fun down(id: Int, x: Float, y: Float) {
+        knobCenter()?.let { (kx, ky) ->
+            if (hypot(x - kx, y - ky) <= knobRadius * 1.25f) {
+                touches[id] = Touch(id, null, x, y).apply { knob = true }
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                invalidate(); return
+            }
+        }
         val k = keyAt(x, y) ?: return
-        val t = Touch(id, k, x)
+        val t = Touch(id, k, x, y)
         touches[id] = t
         listener?.onDown(k)
         if (k.kind == Kind.BACKSPACE) {
@@ -236,53 +301,59 @@ class KeyboardView(context: Context) : View(context) {
                 }
             }
             t.timer = r; postDelayed(r, 400L)
-        } else if (k.popup.isNotEmpty()) {
+        } else if (k.popup.isNotEmpty() || k.kind == Kind.SYMBOLS) {
             val r = Runnable {
-                if (touches[id] === t && t.key === k && !t.moved) {
-                    t.bar = k; t.barIndex = 0; t.held = true
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                    invalidate()
-                }
+                if (touches[id] !== t || t.key !== k || t.moved) return@Runnable
+                t.held = true
+                performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                if (k.popup.isNotEmpty()) { t.tiles = k; t.tile = k.initial } else listener?.onHold(k)
+                invalidate()
             }
-            t.timer = r; postDelayed(r, 300L)
+            t.timer = r; postDelayed(r, 350L)
         }
         invalidate()
     }
 
     private fun move(id: Int, x: Float, y: Float) {
         val t = touches[id] ?: return
-        val bar = t.bar
-        if (bar != null) {
-            val g = barGeometry(t)
-            val i = ((x - g[0]) / g[2]).toInt().coerceIn(0, bar.popup.size - 1)
-            if (i != t.barIndex) { t.barIndex = i; invalidate() }
-            return
-        }
-        if (t.start.kind == Kind.SPACE) {
-            // Sliding along the space bar moves the cursor, a character for every step.
-            val step = context.dp(12f)
-            val dx = x - t.cursorX
-            if (abs(dx) >= step) {
-                val n = (dx / step).toInt()
-                t.cursorX += n * step
-                if (!t.moved) { t.moved = true; invalidate() }
-                listener?.onCursor(n)
+        if (t.knob) {
+            // Every step of the finger away from where it was is one arrow; the strongest direction wins.
+            val step = width / 18f
+            val dx = x - t.ax; val dy = y - t.ay
+            if (abs(dx) >= step && abs(dx) >= abs(dy)) {
+                repeat((abs(dx) / step).toInt()) { listener?.onArrow(if (dx > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT) }
+                t.ax = x; t.ay = y
+            } else if (abs(dy) >= step * 1.6f) {
+                listener?.onArrow(if (dy > 0) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_UP)
+                t.ax = x; t.ay = y
             }
             return
         }
-        if (t.start.kind == Kind.BACKSPACE) return
+        val tk = t.tiles
+        if (tk != null) {
+            val g = tileGeometry(tk)
+            val cols = tk.gridColumns
+            val rows = (tk.popup.size + cols - 1) / cols
+            val col = ((x - g[0]) / g[2]).toInt().coerceIn(0, cols - 1)
+            val row = ((y - g[1]) / g[3]).toInt().coerceIn(0, rows - 1)
+            val i = (row * cols + col).coerceIn(0, tk.popup.size - 1)
+            if (i != t.tile && tk.popup[i].isNotEmpty()) { t.tile = i; invalidate() }
+            return
+        }
+        if (t.start?.kind == Kind.BACKSPACE) return
         val k = keyAt(x, y)
-        if (k !== t.key) { t.key = k; t.moved = true; t.timer?.let { removeCallbacks(it) }; invalidate() }
+        if (k !== t.key && hypot(x - t.x0, y - t.y0) > context.dp(8f)) { t.key = k; t.moved = true; t.timer?.let { removeCallbacks(it) }; invalidate() }
     }
 
     private fun up(id: Int, x: Float, y: Float) {
         val t = touches.remove(id) ?: return
         t.timer?.let { removeCallbacks(it) }
-        val bar = t.bar
+        val tk = t.tiles
         when {
-            bar != null -> listener?.onKey(bar, bar.popup[t.barIndex])
-            t.start.kind == Kind.BACKSPACE -> {}
-            t.start.kind == Kind.SPACE && t.moved -> {}
+            t.knob -> {}
+            tk != null -> tk.popup.getOrNull(t.tile)?.takeIf { it.isNotEmpty() }?.let { listener?.onKey(tk, it) }
+            t.held -> {}
+            t.start?.kind == Kind.BACKSPACE -> {}
             else -> (t.key ?: keyAt(x, y))?.let { listener?.onKey(it, it.text) }
         }
         invalidate()

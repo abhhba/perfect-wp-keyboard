@@ -42,17 +42,17 @@ object Palette {
     }
 
     /**
-     * Measured on a Windows 10 Mobile phone: in the dark the keyboard is nearly black, the letters are dark grey keys, and shift,
-     * backspace, &123 and the smiley are a lighter grey; the enter key is the inverse of the keyboard.
+     * Measured on screenshots of a Windows 10 Mobile phone: in the dark the keyboard and the bar are #1F1F1F, the letters #333333,
+     * shift, backspace, &123 and the language key #4C4C4C, enter is white; the tiles of a held key are #A5A5A5.
      */
     fun colors(context: Context, p: Prefs): Colors {
         val accent = accent(p)
         return if (isDark(context, p)) Colors(
-            dark = true, background = 0xFF171717.toInt(), bar = 0xFF1F1F1F.toInt(), key = 0xFF333333.toInt(), function = 0xFF4A4A4A.toInt(),
-            text = 0xFFFFFFFF.toInt(), subtle = 0xFF9A9A9A.toInt(), accent = accent, onAccent = onColor(accent), popup = 0xFF2B2B2B.toInt(),
+            dark = true, background = 0xFF1F1F1F.toInt(), bar = 0xFF1F1F1F.toInt(), key = 0xFF333333.toInt(), function = 0xFF4C4C4C.toInt(),
+            text = 0xFFFFFFFF.toInt(), subtle = 0xFF8A8A8A.toInt(), accent = accent, onAccent = onColor(accent), popup = 0xFFA5A5A5.toInt(),
         ) else Colors(
-            dark = false, background = 0xFFDADADA.toInt(), bar = 0xFFE6E6E6.toInt(), key = 0xFFF7F7F7.toInt(), function = 0xFFC2C2C2.toInt(),
-            text = 0xFF000000.toInt(), subtle = 0xFF5A5A5A.toInt(), accent = accent, onAccent = onColor(accent), popup = 0xFFFFFFFF.toInt(),
+            dark = false, background = 0xFFE0E0E0.toInt(), bar = 0xFFE0E0E0.toInt(), key = 0xFFF8F8F8.toInt(), function = 0xFFC8C8C8.toInt(),
+            text = 0xFF000000.toInt(), subtle = 0xFF6A6A6A.toInt(), accent = accent, onAccent = onColor(accent), popup = 0xFF5A5A5A.toInt(),
         )
     }
 

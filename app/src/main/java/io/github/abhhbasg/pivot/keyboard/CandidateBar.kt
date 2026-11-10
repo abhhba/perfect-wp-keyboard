@@ -11,13 +11,13 @@ import io.github.abhhbasg.pivot.ui.Colors
 import io.github.abhhbasg.pivot.ui.Fonts
 import io.github.abhhbasg.pivot.ui.Glyph
 import io.github.abhhbasg.pivot.ui.Glyphs
-import io.github.abhhbasg.pivot.ui.dp
+import io.github.abhhbasg.pivot.ui.Palette
 import kotlin.math.abs
 
 /**
- * The strip above the keys, as on Windows 10 Mobile: with nothing typed, only a microphone on the left; while a word is typed,
- * the words for it in a row that slides sideways, the one space would take in the accent colour, and for Chinese an arrow at
- * the end that shows all of them in place of the keys.
+ * The strip above the keys, as on screenshots of the phone: the microphone on the left, then the words for what is being typed in
+ * plain white, in a row that slides sideways; for Chinese an arrow at the right end opens all of them. With all of them open, the
+ * strip is the first row of the grid below it: seven to a row, in the columns of the grid, the arrow pointing up.
  */
 class CandidateBar(context: Context) : View(context) {
     interface Listener {
@@ -44,76 +44,81 @@ class CandidateBar(context: Context) : View(context) {
     private val line = Paint(Paint.ANTI_ALIAS_FLAG)
 
     fun setColors(c: Colors) { colors = c; invalidate() }
-    fun setMicAvailable(on: Boolean) { mic = on; invalidate() }
+    fun setMicAvailable(on: Boolean) { if (mic != on) { mic = on; measureWords(); invalidate() } }
 
-    /** [expandable]: the arrow that opens the page of all the words; [expanded]: that page is open (the arrow points up). */
     fun setWords(list: List<String>, expandable: Boolean = false, expanded: Boolean = false) {
-        if (list != words) scroll = 0f
+        if (list != words || expanded != this.expanded) scroll = 0f
         words = list; this.expandable = expandable; this.expanded = expanded
         measureWords(); invalidate()
     }
 
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), context.dp(48f).toInt())
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        // A tenth of the width, as on the phone.
+        setMeasuredDimension(w, (w * 0.107f).toInt())
+    }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) = measureWords()
 
-    private fun arrowWidth() = if (expandable) height * 1.1f else 0f
-    private fun room() = width - arrowWidth()
+    private fun micWidth() = if (mic && !expanded) height * 1.15f else 0f
+    private fun arrowWidth() = if (expandable || expanded) height * 1.1f else 0f
+    private fun start() = micWidth()
+    private fun room() = width - start() - arrowWidth()
 
-    private fun style() { text.textSize = height * 0.42f; text.typeface = Fonts.regular(context) }
+    /** The columns of the open grid: a tenth of the width each, after a small margin. */
+    val gridCell get() = width / 10f
+    val gridPad get() = width * 0.028f
 
-    /** Each word gets what it needs and at least a third (English) or a seventh (Chinese) of the bar. */
+    private fun style() { text.textSize = height * 0.38f; text.typeface = Fonts.semilight(context) }
+
     private fun measureWords() {
         style()
-        val min = if (expandable) room() / 7f else room() / 3f
         edges = FloatArray(words.size + 1)
-        words.forEachIndexed { i, w -> edges[i + 1] = edges[i] + maxOf(min, text.measureText(w) + context.dp(24f)) }
-        // Three English words share the bar evenly when they fit.
-        if (!expandable && edges.last() <= room()) for (i in words.indices) edges[i + 1] = room() / words.size * (i + 1)
+        if (expanded) {
+            for (i in words.indices) edges[i + 1] = if (i < 7) gridPad + gridCell * (i + 1) - start() else edges[i]
+            if (words.isNotEmpty()) edges[0] = gridPad - start()
+            return
+        }
+        words.forEachIndexed { i, w -> edges[i + 1] = edges[i] + text.measureText(w) + height * 0.6f }
     }
 
-    private fun maxScroll() = maxOf(0f, (edges.lastOrNull() ?: 0f) - room())
+    private fun maxScroll() = if (expanded) 0f else maxOf(0f, (edges.lastOrNull() ?: 0f) - room())
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
         canvas.drawColor(c.bar)
         val h = height.toFloat()
-        if (words.isEmpty()) {
-            if (mic) {
-                if (pressed == MIC) { fill.color = Palette_press(c); canvas.drawRect(0f, 0f, h * 1.2f, h, fill) }
-                Glyphs.draw(canvas, Glyph.MIC, h * 0.6f, h / 2f, h * 0.44f, c.text, line)
-            }
-            return
+        val press = Palette.withAlpha(c.text, 0x26)
+        if (micWidth() > 0f) {
+            if (pressed == MIC) { fill.color = press; canvas.drawRect(0f, 0f, micWidth(), h, fill) }
+            Glyphs.draw(canvas, Glyph.MIC, micWidth() / 2f, h / 2f, h * 0.42f, c.text, line)
         }
         canvas.save()
-        canvas.clipRect(0f, 0f, room(), h)
+        canvas.clipRect(start(), 0f, start() + room(), h)
         style()
-        words.forEachIndexed { i, w ->
-            val l = edges[i] - scroll; val r = edges[i + 1] - scroll
-            if (r < 0 || l > room()) return@forEachIndexed
-            if (pressed == i) { fill.color = Palette_press(c); canvas.drawRect(l, 0f, r, h, fill) }
-            text.color = if (i == 0) c.accent.takeIf { readable(it, c.bar) } ?: c.text else c.text
-            text.typeface = if (i == 0) Fonts.semibold(context) else Fonts.regular(context)
-            val m = text.fontMetrics
-            canvas.drawText(w, (l + r) / 2f, h / 2f - (m.ascent + m.descent) / 2f, text)
+        val m = text.fontMetrics
+        val shown = if (expanded) minOf(7, words.size) else words.size
+        for (i in 0 until shown) {
+            val l = start() + edges[i] - scroll; val r = start() + edges[i + 1] - scroll
+            if (r < start() || l > start() + room()) continue
+            if (pressed == i) { fill.color = press; canvas.drawRect(l, 0f, r, h, fill) }
+            text.color = c.text
+            canvas.drawText(words[i], (l + r) / 2f, h / 2f - (m.ascent + m.descent) / 2f, text)
         }
         canvas.restore()
-        if (expandable) {
-            val x = room()
-            if (pressed == ARROW) { fill.color = Palette_press(c); canvas.drawRect(x, 0f, width.toFloat(), h, fill) }
-            Glyphs.draw(canvas, if (expanded) Glyph.CHEVRON_UP else Glyph.CHEVRON_DOWN, x + arrowWidth() / 2f, h / 2f, h * 0.34f, c.text, line)
+        if (arrowWidth() > 0f) {
+            val x = width - arrowWidth()
+            if (pressed == ARROW) { fill.color = press; canvas.drawRect(x, 0f, width.toFloat(), h, fill) }
+            Glyphs.draw(canvas, if (expanded) Glyph.CHEVRON_UP else Glyph.CHEVRON_DOWN, x + arrowWidth() / 2f, h / 2f, h * 0.36f, c.text, line)
         }
     }
 
-    private fun Palette_press(c: Colors) = io.github.abhhbasg.pivot.ui.Palette.withAlpha(c.text, 0x26)
-    private fun readable(a: Int, bg: Int) = abs(io.github.abhhbasg.pivot.ui.Palette.luminance(a) - io.github.abhhbasg.pivot.ui.Palette.luminance(bg)) > 0.15
-
     private fun indexAt(x: Float): Int {
-        if (words.isEmpty()) return if (mic && x < height * 1.2f) MIC else NONE
-        if (expandable && x >= room()) return ARROW
-        val at = x + scroll
-        return words.indices.firstOrNull { at < edges[it + 1] } ?: NONE
+        if (x < micWidth()) return MIC
+        if (arrowWidth() > 0f && x >= width - arrowWidth()) return ARROW
+        val at = x - start() + scroll
+        val shown = if (expanded) minOf(7, words.size) else words.size
+        return (0 until shown).firstOrNull { at >= edges[it] && at < edges[it + 1] } ?: NONE
     }
 
     @SuppressLint("ClickableViewAccessibility")

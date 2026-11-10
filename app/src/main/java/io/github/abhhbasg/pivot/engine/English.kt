@@ -10,23 +10,31 @@ class Suggestions(val words: List<String>, val correction: String?)
  * (a letter missing, extra, wrong or two swapped, or a missing apostrophe) makes a common word of it.
  */
 class EnglishEngine(words: List<Pair<String, Int>>) {
-    /** Lower-case forms, sorted, with the frequency and the spelling of each ("i" → "I", "london" → "London"). */
+    /**
+     * Lower-case forms, sorted, and the frequency of each, in plain arrays: a keyboard lives in a small heap, and maps of 160,000
+     * words would fill it. Only the spellings that are not all lower case ("I", "London") are kept apart.
+     */
     private val sorted: Array<String>
-    private val freq = HashMap<String, Int>()
+    private val freqs: IntArray
     private val spelling = HashMap<String, String>()
     val learned = HashMap<String, Int>()
 
     init {
+        val best = HashMap<String, Int>(words.size * 2)
         for ((w, f) in words) {
             val k = w.lowercase()
-            if ((freq[k] ?: -1) < f) { freq[k] = f; spelling[k] = w }
+            if ((best[k] ?: -1) < f) { best[k] = f; if (k != w) spelling[k] = w else spelling.remove(k) }
         }
-        sorted = freq.keys.toTypedArray().also { it.sort() }
+        sorted = best.keys.toTypedArray().also { it.sort() }
+        freqs = IntArray(sorted.size) { best[sorted[it]]!! }
     }
 
-    fun knows(word: String) = word.lowercase() in freq || word.lowercase() in learned
+    private fun freqOf(k: String): Int { val i = sorted.binarySearch(k); return if (i >= 0) freqs[i] else 0 }
+    private fun inList(k: String) = sorted.binarySearch(k) >= 0
 
-    private fun weight(k: String) = (freq[k] ?: 0) + (learned[k] ?: 0) * 20
+    fun knows(word: String) = inList(word.lowercase()) || word.lowercase() in learned
+
+    private fun weight(k: String) = freqOf(k) + (learned[k] ?: 0) * 20
 
     /** Words that start with [prefix], commonest first. */
     fun completions(prefix: String, limit: Int): List<String> {
@@ -78,7 +86,7 @@ class EnglishEngine(words: List<Pair<String, Int>>) {
     fun correction(word: String): String? {
         val k = word.lowercase()
         if (k.length < 2 || knows(k)) return null
-        return edits(k).filter { (it.key in freq || it.key in learned) && weight(it.key) >= 80 }
+        return edits(k).filter { (inList(it.key) || it.key in learned) && weight(it.key) >= 80 }
             .maxByOrNull { weight(it.key) - it.value * 40 }?.key
     }
 

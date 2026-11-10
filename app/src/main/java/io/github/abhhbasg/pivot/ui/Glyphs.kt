@@ -8,7 +8,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import io.github.abhhbasg.pivot.R
 
-enum class Glyph { SHIFT, CAPS_LOCK, BACKSPACE, ENTER, SEARCH, SEND, GO, DONE, SMILEY, MIC, CHEVRON_DOWN, CHEVRON_UP, BACK, CLOSE, GLOBE }
+enum class Glyph { SHIFT, CAPS_LOCK, BACKSPACE, ENTER, SEARCH, SEND, GO, DONE, SMILEY, MIC, CHEVRON_DOWN, CHEVRON_UP, CHEVRON_LEFT, CHEVRON_RIGHT, BACK, CLOSE, GLOBE, GEAR, NEXT_PAGE }
 
 /**
  * The thin line glyphs of the Windows 10 Mobile keyboard, drawn with paths in a square from -1 to 1 so they stay sharp at any
@@ -74,6 +74,26 @@ object Glyphs {
             }
             Glyph.CHEVRON_DOWN -> { path.reset(); path.moveTo(-0.7f, -0.3f); path.lineTo(0f, 0.4f); path.lineTo(0.7f, -0.3f); c.drawPath(path, paint) }
             Glyph.CHEVRON_UP -> { path.reset(); path.moveTo(-0.7f, 0.3f); path.lineTo(0f, -0.4f); path.lineTo(0.7f, 0.3f); c.drawPath(path, paint) }
+            Glyph.CHEVRON_LEFT -> { path.reset(); path.moveTo(0.3f, -0.7f); path.lineTo(-0.4f, 0f); path.lineTo(0.3f, 0.7f); c.drawPath(path, paint) }
+            Glyph.CHEVRON_RIGHT -> { path.reset(); path.moveTo(-0.3f, -0.7f); path.lineTo(0.4f, 0f); path.lineTo(-0.3f, 0.7f); c.drawPath(path, paint) }
+            Glyph.NEXT_PAGE -> {
+                // The circled arrow of the phone's symbol pages.
+                c.drawCircle(0f, 0f, 0.88f, paint)
+                path.reset(); path.moveTo(-0.15f, -0.4f); path.lineTo(0.25f, 0f); path.lineTo(-0.15f, 0.4f); c.drawPath(path, paint)
+            }
+            Glyph.GEAR -> {
+                c.drawCircle(0f, 0f, 0.28f, paint)
+                path.reset()
+                for (i in 0 until 16) {
+                    val a = Math.toRadians(i * 22.5 - 11.25)
+                    val r = if (i % 2 == 0) 0.92 else 0.66
+                    val x = (Math.cos(a) * r).toFloat(); val y = (Math.sin(a) * r).toFloat()
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    val a2 = Math.toRadians(i * 22.5 + 11.25)
+                    path.lineTo((Math.cos(a2) * r).toFloat(), (Math.sin(a2) * r).toFloat())
+                }
+                path.close(); c.drawPath(path, paint)
+            }
             Glyph.BACK -> {
                 c.drawLine(-0.85f, 0f, 0.85f, 0f, paint)
                 path.reset(); path.moveTo(-0.25f, -0.6f); path.lineTo(-0.85f, 0f); path.lineTo(-0.25f, 0.6f); c.drawPath(path, paint)

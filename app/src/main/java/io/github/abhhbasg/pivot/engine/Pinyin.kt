@@ -164,10 +164,12 @@ class PinyinEngine(entries: List<Entry>) {
         /** Reads the word list built by tools/build_dictionaries.py: syllables joined by ', the word, the frequency. */
         fun read(reader: BufferedReader): PinyinEngine {
             val entries = ArrayList<Entry>(70000)
+            // About 400 syllables are shared by 65,000 words: one copy of each.
+            val pool = HashMap<String, String>()
             reader.forEachLine { line ->
                 val a = line.indexOf('\t'); val b = line.indexOf('\t', a + 1)
                 if (a <= 0 || b <= a) return@forEachLine
-                val syl = line.substring(0, a).split('\'')
+                val syl = line.substring(0, a).split('\'').map { pool.getOrPut(it) { it } }
                 val word = line.substring(a + 1, b)
                 val f = line.substring(b + 1).toIntOrNull() ?: return@forEachLine
                 if (syl.size == word.length) entries += Entry(word, syl, f / 4000.0)

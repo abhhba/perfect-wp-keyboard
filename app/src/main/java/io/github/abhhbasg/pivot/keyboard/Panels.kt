@@ -27,6 +27,9 @@ class GridPanel(context: Context) : View(context) {
     private var items: List<String> = emptyList()
     private var fixedColumns = 0
     private var textScale = 0.42f
+    private var cellWidth = 0f
+    private var padLeft = 0f
+    private var rowHeight = 0f
     private var rects = FloatArray(0)
     private var contentHeight = 0f
     private var scroll = 0f
@@ -37,13 +40,16 @@ class GridPanel(context: Context) : View(context) {
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val rowH get() = context.dp(52f)
+    private val rowH get() = if (rowHeight > 0f) rowHeight else context.dp(52f)
 
     fun setColors(c: Colors) { colors = c; invalidate() }
 
-    /** [columns] 0: each cell as wide as its text (words); otherwise that many cells to a row (emoji). */
-    fun setItems(list: List<String>, columns: Int, scale: Float) {
-        items = list; fixedColumns = columns; textScale = scale; scroll = 0f
+    /**
+     * [columns] 0: each cell as wide as its text (words); otherwise that many cells to a row (emoji), each [cell] wide (or an even
+     * share of the width) after [pad], in rows [row] high.
+     */
+    fun setItems(list: List<String>, columns: Int, scale: Float, cell: Float = 0f, pad: Float = 0f, row: Float = 0f) {
+        items = list; fixedColumns = columns; textScale = scale; cellWidth = cell; padLeft = pad; rowHeight = row; scroll = 0f
         layoutItems(); invalidate()
     }
 
@@ -55,11 +61,11 @@ class GridPanel(context: Context) : View(context) {
         rects = FloatArray(items.size * 4)
         if (width == 0) return
         text.textSize = rowH * textScale
-        var x = 0f; var y = 0f
+        var x = padLeft; var y = 0f
         val minW = width / 6f
         items.forEachIndexed { i, s ->
-            val w = if (fixedColumns > 0) width / fixedColumns.toFloat() else maxOf(minW, text.measureText(s) + context.dp(28f))
-            if (x + w > width + 0.5f && x > 0f) { x = 0f; y += rowH }
+            val w = when { cellWidth > 0f -> cellWidth; fixedColumns > 0 -> (width - padLeft) / fixedColumns.toFloat(); else -> maxOf(minW, text.measureText(s) + context.dp(28f)) }
+            if ((x + w > width + 0.5f || (fixedColumns > 0 && i > 0 && i % fixedColumns == 0)) && x > padLeft) { x = padLeft; y += rowH }
             rects[i * 4] = x; rects[i * 4 + 1] = y; rects[i * 4 + 2] = x + w; rects[i * 4 + 3] = y + rowH
             x += w
         }
@@ -72,14 +78,14 @@ class GridPanel(context: Context) : View(context) {
         val c = colors ?: return
         canvas.drawColor(c.background)
         text.textSize = rowH * textScale
-        text.typeface = Fonts.regular(context)
+        text.typeface = Fonts.semilight(context)
         val m = text.fontMetrics
         fill.color = Palette.withAlpha(c.text, 0x18)
         items.forEachIndexed { i, s ->
             val l = rects[i * 4]; val t = rects[i * 4 + 1] - scroll; val r = rects[i * 4 + 2]; val b = rects[i * 4 + 3] - scroll
             if (b < 0 || t > height) return@forEachIndexed
             if (i == pressed) { fill.color = c.accent; canvas.drawRect(l, t, r, b, fill); fill.color = Palette.withAlpha(c.text, 0x18) }
-            else if (fixedColumns == 0) canvas.drawRect(l + 1f, b - 1f, r - 1f, b, fill)
+            else if (fixedColumns == 0 && cellWidth == 0f) canvas.drawRect(l + 1f, b - 1f, r - 1f, b, fill)
             text.color = if (i == pressed) c.onAccent else c.text
             canvas.drawText(s, (l + r) / 2f, (t + b) / 2f - (m.ascent + m.descent) / 2f, text)
         }
@@ -201,5 +207,38 @@ object Emoji {
             Category("🚗", range(0x1F680, 0x1F6C5) + range(0x1F3D4, 0x1F3F0)),
             Category("💡", range(0x1F4A1, 0x1F4FC) + range(0x1F50A, 0x1F53D)),
         ).map { cat -> Category(cat.tab, cat.items.filter(::ok)) }.filter { it.items.isNotEmpty() }
+    }
+}
+
+/**
+ * The grey column beside all the candidates, as on the phone: which of them to show, the single characters or all the words,
+ * the one shown large and the other small above it.
+ */
+class SidePanel(context: Context) : View(context) {
+    var onToggle: (() -> Unit)? = null
+    private var colors: Colors? = null
+    private var singles = false
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+
+    fun setColors(c: Colors) { colors = c; invalidate() }
+    fun setSingles(on: Boolean) { singles = on; invalidate() }
+
+    override fun onDraw(canvas: Canvas) {
+        val c = colors ?: return
+        canvas.drawColor(if (c.dark) 0xFF474747.toInt() else 0xFFC8C8C8.toInt())
+        val w = width.toFloat()
+        text.typeface = Fonts.semilight(context)
+        text.textAlign = Paint.Align.LEFT
+        text.color = c.subtle; text.textSize = w * 0.15f
+        canvas.drawText(if (singles) "全部" else "单字", w * 0.07f, w * 0.2f, text)
+        text.textAlign = Paint.Align.CENTER
+        text.color = c.text; text.textSize = w * 0.2f
+        canvas.drawText(if (singles) "单字" else "全部", w / 2f, w * 0.42f, text)
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (e.actionMasked == MotionEvent.ACTION_UP && e.y < width * 0.6f) onToggle?.invoke()
+        return true
     }
 }

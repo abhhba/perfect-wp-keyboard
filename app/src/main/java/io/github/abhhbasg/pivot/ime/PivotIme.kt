@@ -26,7 +26,9 @@ import io.github.abhhbasg.pivot.keyboard.KeyListener
 import io.github.abhhbasg.pivot.keyboard.KeyboardView
 import io.github.abhhbasg.pivot.keyboard.Kind
 import io.github.abhhbasg.pivot.keyboard.Layouts
+import io.github.abhhbasg.pivot.keyboard.Mode
 import io.github.abhhbasg.pivot.keyboard.PageId
+import io.github.abhhbasg.pivot.keyboard.SidePanel
 import io.github.abhhbasg.pivot.ui.Colors
 import io.github.abhhbasg.pivot.ui.Glyph
 import io.github.abhhbasg.pivot.ui.Palette
@@ -45,6 +47,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     private var bar: CandidateBar? = null
     private var grid: GridPanel? = null
     private var buttons: ButtonRow? = null
+    private var side: SidePanel? = null
     private var panelBox: LinearLayout? = null
     private var root: LinearLayout? = null
     private var colors: Colors? = null
@@ -54,8 +57,12 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     private var panel = Panel.NONE
     private var shift = 0
     private var lastShiftTap = 0L
-    /** The Chinese keyboard is typing Chinese (中) and not English (英). Kept from one text box to the next. */
+    /** The Chinese keyboard is typing Chinese (简) and not English (ENG). Kept from one text box to the next. */
     private var chineseMode = true
+    /** A box for an address: ".com" in place of the comma. */
+    private var web = false
+    /** All the candidates open, only the single characters. */
+    private var singles = false
     private val composing = StringBuilder()
     private var pinyin: List<Candidate> = emptyList()
     private var english: List<String> = emptyList()
@@ -79,9 +86,15 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         val b = CandidateBar(this).also { it.listener = this; bar = it }
         val g = GridPanel(this).also { grid = it }
         val btn = ButtonRow(this).also { buttons = it }
+        val sp = SidePanel(this).also { side = it; it.onToggle = { singles = !singles; it.setSingles(singles); openCandidates() } }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(g, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+            addView(sp, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(g, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(btn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             visibility = View.GONE
         }
@@ -109,7 +122,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     private fun applyLook() {
         val c = Palette.colors(this, prefs)
         colors = c
-        keyboard?.setColors(c); bar?.setColors(c); grid?.setColors(c); buttons?.setColors(c)
+        keyboard?.setColors(c); bar?.setColors(c); grid?.setColors(c); buttons?.setColors(c); side?.setColors(c)
         root?.setBackgroundColor(c.background)
         keyboard?.setPreview(prefs.preview)
         keyboard?.setHeightPct(prefs.keyHeight)
@@ -132,6 +145,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
             cls == 0 -> Field.PLAIN
             else -> Field.TEXT
         }
+        web = cls == InputType.TYPE_CLASS_TEXT && variation in WEB
         page = when (field) { Field.NUMBER -> PageId.NUMBERS; Field.PHONE -> PageId.PHONE; else -> PageId.LETTERS }
         panel = Panel.NONE
         shift = 0
@@ -162,18 +176,25 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
 
     private fun usesChinese() = prefs.chinese && field == Field.TEXT
     private fun typingChinese() = usesChinese() && chineseMode && page == PageId.LETTERS
-    private fun modeLabel() = if (usesChinese()) (if (chineseMode) "中" else "英") else null
+    /** The language key: 简 or ENG on the Chinese keyboard; none when only English is typed. */
+    private fun mode(): Mode? = if (usesChinese()) (if (chineseMode) Mode.CHINESE else Mode.ENGLISH) else null
 
     private fun showPage() {
         val kb = keyboard ?: return
         kb.setPage(when (page) {
-            PageId.LETTERS -> Layouts.letters(modeLabel())
-            PageId.SYMBOLS -> Layouts.symbols(false, modeLabel())
-            PageId.MORE_SYMBOLS -> Layouts.symbols(true, modeLabel())
+            PageId.LETTERS -> Layouts.letters(mode(), web)
+            PageId.SYMBOLS -> Layouts.symbols(false, mode(), web)
+            PageId.MORE_SYMBOLS -> Layouts.symbols(true, mode(), web)
             PageId.NUMBERS -> Layouts.numbers(false)
             PageId.PHONE -> Layouts.numbers(true)
         })
+        kb.setKnob(page != PageId.NUMBERS && page != PageId.PHONE)
         kb.setShift(shift)
+    }
+
+    private fun setChinese(on: Boolean) {
+        if (chineseMode == on) return
+        finishAll(); chineseMode = on; setShift(0); showPage(); autoCaps(); updateBar()
     }
 
     private fun updateEnter(info: EditorInfo?) {
@@ -227,18 +248,22 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
             Kind.SYMBOLS -> { finishAll(); page = PageId.SYMBOLS; setShift(0); showPage() }
             Kind.MORE_SYMBOLS -> { page = if (page == PageId.SYMBOLS) PageId.MORE_SYMBOLS else PageId.SYMBOLS; showPage() }
             Kind.LETTERS -> { page = PageId.LETTERS; showPage(); autoCaps() }
-            Kind.EMOJI -> { finishAll(); openEmoji() }
-            Kind.MODE -> { finishAll(); chineseMode = !chineseMode; setShift(0); showPage(); autoCaps(); updateBar() }
+            Kind.LANGUAGE -> when (text) {
+                // A tile of the held key: the settings, or one of the two languages; a plain tap switches.
+                Layouts.SETTINGS -> { finishAll(); startActivity(android.content.Intent(this, io.github.abhhbasg.pivot.settings.SettingsActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                Mode.CHINESE.key -> setChinese(true)
+                "" -> setChinese(!chineseMode)
+                else -> setChinese(false)
+            }
         }
     }
 
     override fun onRepeat(key: Key) = backspace(true)
 
-    override fun onCursor(steps: Int) {
-        finishAll()
-        val code = if (steps > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT
-        repeat(kotlin.math.abs(steps)) { sendDownUpKeyEvents(code) }
-    }
+    override fun onArrow(keyCode: Int) { finishAll(); sendDownUpKeyEvents(keyCode) }
+
+    /** Holding &123 opens the emoji, as the smiley in its corner says. */
+    override fun onHold(key: Key) { if (key.kind == Kind.SYMBOLS) { finishAll(); openEmoji() } }
 
     private fun type(raw: String) {
         val ic = currentInputConnection ?: return
@@ -388,7 +413,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         val b = bar ?: return
         when {
             field == Field.PASSWORD || field == Field.NUMBER || field == Field.PHONE -> b.setWords(emptyList())
-            typingChinese() && composing.isNotEmpty() -> b.setWords(pinyin.take(40).map { it.text }, expandable = pinyin.size > 1, expanded = panel == Panel.CANDIDATES)
+            typingChinese() && composing.isNotEmpty() -> b.setWords(shownPinyin().take(if (panel == Panel.CANDIDATES) 7 else 40).map { it.text }, expandable = pinyin.size > 1, expanded = panel == Panel.CANDIDATES)
             composing.isNotEmpty() && field == Field.TEXT -> {
                 val typed = composing.toString()
                 val eng = Engines.english
@@ -408,7 +433,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
 
     override fun onPick(index: Int) {
         val ic = currentInputConnection ?: return
-        if (typingChinese() && composing.isNotEmpty()) { pinyin.getOrNull(index)?.let { commitPinyin(it, all = false) }; return }
+        if (typingChinese() && composing.isNotEmpty()) { shownPinyin().getOrNull(index)?.let { commitPinyin(it, all = false) }; return }
         val word = english.getOrNull(index) ?: return
         val typed = composing.toString()
         ic.commitText("$word ", 1)
@@ -445,6 +470,8 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         val kb = keyboard ?: return
         panel = p
         box.layoutParams = box.layoutParams.apply { height = kb.height.coerceAtLeast(1) }
+        buttons?.visibility = if (p == Panel.CANDIDATES) View.GONE else View.VISIBLE
+        if (p != Panel.CANDIDATES) side?.visibility = View.GONE
         box.visibility = View.VISIBLE
         kb.visibility = View.INVISIBLE
     }
@@ -452,20 +479,32 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
     private fun closePanel() {
         if (panel == Panel.NONE) return
         panel = Panel.NONE
+        singles = false
         panelBox?.visibility = View.GONE
         keyboard?.visibility = View.VISIBLE
     }
 
-    /** All the words for the Pinyin, in place of the keys. */
+    /** The candidates as shown: all of them, or only the single characters when the side panel asks for those. */
+    private fun shownPinyin(): List<Candidate> = if (panel == Panel.CANDIDATES && singles) pinyin.filter { it.text.length == 1 } else pinyin
+
+    /**
+     * All the words for the Pinyin, in place of the keys, as on the phone: seven to a row in the columns the bar above lines up
+     * with, the grey column beside them choosing single characters or all.
+     */
     private fun openCandidates() {
         val g = grid ?: return
-        g.setItems(pinyin.map { it.text }, 0, 0.42f)
+        val b = bar ?: return
+        panel = Panel.CANDIDATES
+        val list = shownPinyin()
+        val rest = list.drop(7)
+        g.setItems(rest.map { it.text }, 7, 0.36f, cell = b.gridCell, pad = b.gridPad, row = b.height * 1.1f)
         g.onTopItem = null
-        g.onPick = { i -> pinyin.getOrNull(i)?.let { commitPinyin(it, all = false) } }
-        buttons?.setItems(listOf(ButtonRow.Item(glyph = Glyph.BACK, weight = 1f), ButtonRow.Item(weight = 3f), ButtonRow.Item(glyph = Glyph.BACKSPACE, weight = 1f, repeat = true)))
-        buttons?.select(-1)
-        buttons?.onClick = { i -> when (i) { 0 -> { closePanel(); updateBar() }; 2 -> backspace(false) } }
+        g.onPick = { i -> rest.getOrNull(i)?.let { commitPinyin(it, all = false) } }
+        side?.layoutParams = (side?.layoutParams as? LinearLayout.LayoutParams)?.apply { width = (b.width - b.gridPad - b.gridCell * 7).toInt() }
+        side?.visibility = View.VISIBLE
+        side?.setSingles(singles)
         showPanel(Panel.CANDIDATES)
+        updateBar()
     }
 
     private fun openEmoji() {
@@ -477,8 +516,9 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
         }
         val all = emoji.flatMap { it.items }
         g.setItems(all, 8, 0.55f)
+        g.onTopItem = null
         g.onPick = { i -> currentInputConnection?.commitText(all[i], 1) }
-        val items = listOf(ButtonRow.Item(label = if (typingChinese() || modeLabel() != null) "拼音" else "abc", weight = 1.4f)) +
+        val items = listOf(ButtonRow.Item(label = if (mode() == Mode.CHINESE) "拼音" else "abc", weight = 1.4f)) +
             emoji.map { ButtonRow.Item(label = it.tab) } + ButtonRow.Item(glyph = Glyph.BACKSPACE, weight = 1.2f, repeat = true)
         buttons?.setItems(items)
         buttons?.select(1)
@@ -495,6 +535,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener {
 
     private companion object {
         val PASSWORDS = setOf(InputType.TYPE_TEXT_VARIATION_PASSWORD, InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD, InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)
+        val WEB = setOf(InputType.TYPE_TEXT_VARIATION_URI, InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS)
         val PLAIN = setOf(InputType.TYPE_TEXT_VARIATION_URI, InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS, InputType.TYPE_TEXT_VARIATION_FILTER)
     }
 }
