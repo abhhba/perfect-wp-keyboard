@@ -5,5 +5,9 @@ This product includes word lists derived from the Android Open Source Project
 (platform/packages/inputmethods/PinyinIME and platform/packages/inputmethods/LatinIME),
 Copyright (C) 2009 The Android Open Source Project, licensed under the Apache License, Version 2.0.
 
+This product includes word frequencies from jieba (Copyright (c) 2013 Sun Junyi, MIT License)
+and Pinyin readings from mozillazg/phrase-pinyin-data and mozillazg/pinyin-data
+(Copyright (c) 2016-2017 mozillazg, MIT License).
+
 This product includes the Selawik typeface, Copyright 2015 Microsoft Corporation,
 licensed under the SIL Open Font License, Version 1.1 (licenses/Selawik-OFL-1.1.txt).
