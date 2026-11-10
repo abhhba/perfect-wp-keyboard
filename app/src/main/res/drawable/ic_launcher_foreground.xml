@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A flat keyboard in thin white lines, centred in the safe zone of an adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.5" android:fillColor="#00000000"
+        android:pathData="M30,40 L78,40 L78,68 L30,68 Z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M35,45h5v5h-5z M43,45h5v5h-5z M51,45h5v5h-5z M59,45h5v5h-5z M67,45h5v5h-5z M39,53h5v5h-5z M47,53h5v5h-5z M55,53h5v5h-5z M63,53h5v5h-5z M41,61h26v3h-26z" />
+</vector>

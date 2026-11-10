@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pivot 键盘</string>
+    <string name="subtype_zh">中文（拼音）</string>
+    <string name="subtype_en">英语</string>
+
+    <string name="pivot_start">开始</string>
+    <string name="pivot_settings">设置</string>
+    <string name="pivot_about">关于</string>
+
+    <string name="step_enable">启用键盘</string>
+    <string name="step_enable_done">已启用</string>
+    <string name="step_enable_todo">点此在手机设置中启用</string>
+    <string name="step_choose">设为当前键盘</string>
+    <string name="step_choose_done">已是当前键盘</string>
+    <string name="step_choose_todo">点此选择</string>
+    <string name="try_here">在这里试试</string>
+
+    <string name="group_look">外观</string>
+    <string name="group_typing">输入</string>
+    <string name="group_words">词语</string>
+
+    <string name="theme">主题</string>
+    <string name="theme_system">跟随手机</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_light">浅色</string>
+    <string name="accent">主题色</string>
+    <string name="key_height">按键高度</string>
+
+    <string name="sound">按键声音</string>
+    <string name="vibrate">按键振动</string>
+    <string name="preview">按下时在手指上方显示按键</string>
+    <string name="auto_caps">句首字母自动大写</string>
+    <string name="double_space">双击空格输入句号</string>
+
+    <string name="chinese">中文（拼音）</string>
+    <string name="chinese_summary">用 中/英 键切换中文和英文。关闭后只输入英文。</string>
+    <string name="auto_correct">自动更正拼错的英文单词</string>
+    <string name="learn">记住我选的词</string>
+    <string name="forget">清除记住的词</string>
+    <string name="forget_confirm">清除键盘从你这里记住的所有词？</string>
+    <string name="forgotten">已清除</string>
+
+    <string name="on">开</string>
+    <string name="off">关</string>
+    <string name="ok">确定</string>
+    <string name="cancel">取消</string>
+    <string name="choose">选择</string>
+
+    <string name="about_version">版本 %1$s</string>
+    <string name="about_text">一款 Windows 10 Mobile 风格的 Android 键盘：中文拼音和英文。\n\n自由软件，采用 Apache License 2.0 许可证。</string>
+    <string name="about_credits">词库来自 Android 开源项目（PinyinIME 和 LatinIME），Apache License 2.0。字体为微软的 Selawik，SIL Open Font License 1.1。</string>
+</resources>

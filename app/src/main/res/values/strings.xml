@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pivot Keyboard</string>
+    <string name="subtype_zh">Chinese (Pinyin)</string>
+    <string name="subtype_en">English</string>
+
+    <string name="pivot_start">start</string>
+    <string name="pivot_settings">settings</string>
+    <string name="pivot_about">about</string>
+
+    <string name="step_enable">Turn the keyboard on</string>
+    <string name="step_enable_done">Turned on</string>
+    <string name="step_enable_todo">Tap to turn it on in the phone\'s settings</string>
+    <string name="step_choose">Make it your keyboard</string>
+    <string name="step_choose_done">It is your keyboard</string>
+    <string name="step_choose_todo">Tap to choose it</string>
+    <string name="try_here">Try it here</string>
+
+    <string name="group_look">look</string>
+    <string name="group_typing">typing</string>
+    <string name="group_words">words</string>
+
+    <string name="theme">Theme</string>
+    <string name="theme_system">Same as the phone</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="accent">Accent colour</string>
+    <string name="key_height">Key height</string>
+
+    <string name="sound">Key sound</string>
+    <string name="vibrate">Vibrate on key press</string>
+    <string name="preview">Show the key above my finger</string>
+    <string name="auto_caps">Capitalise the first letter of a sentence</string>
+    <string name="double_space">Full stop after a double space</string>
+
+    <string name="chinese">Chinese (Pinyin)</string>
+    <string name="chinese_summary">The 中/英 key switches between Chinese and English. Off: English only.</string>
+    <string name="auto_correct">Correct misspelled English words</string>
+    <string name="learn">Learn the words I choose</string>
+    <string name="forget">Forget the learned words</string>
+    <string name="forget_confirm">Forget every word the keyboard has learned from you?</string>
+    <string name="forgotten">Forgotten</string>
+
+    <string name="on">On</string>
+    <string name="off">Off</string>
+    <string name="ok">ok</string>
+    <string name="cancel">cancel</string>
+    <string name="choose">choose</string>
+
+    <string name="about_version">Version %1$s</string>
+    <string name="about_text">A keyboard in the manner of Windows 10 Mobile for Android: Chinese Pinyin and English.\n\nFree software under the Apache License 2.0.</string>
+    <string name="about_credits">Word lists from the Android Open Source Project (PinyinIME and LatinIME), Apache License 2.0. The Selawik typeface by Microsoft, SIL Open Font License 1.1.</string>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#FFFFFFFF</color>
+    <color name="fg">#FF000000</color>
+    <color name="subtle">#FF6B6B6B</color>
+    <color name="accent_default">#FF0078D7</color>
+    <bool name="light_bars">true</bool>
+</resources>
