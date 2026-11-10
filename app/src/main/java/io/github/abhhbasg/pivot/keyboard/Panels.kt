@@ -76,7 +76,7 @@ class GridPanel(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
-        canvas.drawColor(c.background)
+        fill.color = c.background; canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
         text.textSize = rowH * textScale
         text.typeface = Fonts.semilight(context)
         val m = text.fontMetrics
@@ -153,7 +153,7 @@ class ButtonRow(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
-        canvas.drawColor(c.bar)
+        fill.color = c.bar; canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
         val e = edges()
         val h = height.toFloat()
         items.forEachIndexed { i, it ->
@@ -219,13 +219,14 @@ class SidePanel(context: Context) : View(context) {
     private var colors: Colors? = null
     private var singles = false
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val fill = Paint()
 
     fun setColors(c: Colors) { colors = c; invalidate() }
     fun setSingles(on: Boolean) { singles = on; invalidate() }
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
-        canvas.drawColor(if (c.dark) 0xFF474747.toInt() else 0xFFC8C8C8.toInt())
+        fill.color = if (c.dark) 0xFF474747.toInt() else 0xFFC8C8C8.toInt(); canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
         val w = width.toFloat()
         text.typeface = Fonts.semilight(context)
         text.textAlign = Paint.Align.LEFT
@@ -270,7 +271,7 @@ class VoicePanel(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
-        canvas.drawColor(c.background)
+        fill.color = c.background; canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
         val l = colLeft(); val r = width - gap; val ch = cellH()
         items.forEachIndexed { i, it ->
             val t = gap + i * ch; val b = t + ch - gap

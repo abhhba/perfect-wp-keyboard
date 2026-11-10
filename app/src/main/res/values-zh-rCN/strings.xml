@@ -34,7 +34,7 @@
     <string name="double_space">双击空格输入句号</string>
 
     <string name="chinese">中文（拼音）</string>
-    <string name="chinese_summary">用 中/英 键切换中文和英文。关闭后只输入英文。</string>
+    <string name="chinese_summary">用 简/ENG 键切换中文和英文。关闭后只输入英文。</string>
     <string name="auto_correct">自动更正拼错的英文单词</string>
     <string name="learn">记住我选的词</string>
     <string name="forget">清除记住的词</string>

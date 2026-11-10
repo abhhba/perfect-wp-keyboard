@@ -127,12 +127,12 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
-        canvas.drawColor(c.background)
+        fill.color = c.background; canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill) // not drawColor: the view may draw outside itself, over the bar
         for (k in page.keys) drawKey(canvas, k, c)
         val tiles = touches.values.firstOrNull { it.tiles != null }
         val knobTouch = touches.values.firstOrNull { it.knob }
         // While tiles are open or the knob is dragged, the rest of the keyboard sinks back.
-        if (tiles != null || knobTouch != null) canvas.drawColor(Palette.withAlpha(0xFF000000.toInt(), 0x80))
+        if (tiles != null || knobTouch != null) { fill.color = Palette.withAlpha(0xFF000000.toInt(), 0x80); canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill) }
         drawKnob(canvas, c, knobTouch != null)
         if (tiles != null) drawTiles(canvas, tiles, c)
         else if (preview) for (t in touches.values) if (!t.moved && !t.knob) t.key?.let { if (it.kind == Kind.CHAR) drawPreview(canvas, it, c) }
@@ -222,7 +222,7 @@ class KeyboardView(context: Context) : View(context) {
         val w = k.width * 1.34f; val h = k.height * 1.15f
         val left = (k.cx - w / 2f).coerceIn(0f, width - w)
         val bottom = k.top - gap * 0.6f
-        val top = maxOf(0f, bottom - h)
+        val top = bottom - h
         fill.color = c.accent
         canvas.drawRect(left, top, left + w, bottom, fill)
         label(canvas, if (shift != 0) k.label.uppercase() else k.label, left + w / 2f, (top + bottom) / 2f, k.height * 0.5f, c.onAccent)
@@ -237,7 +237,8 @@ class KeyboardView(context: Context) : View(context) {
         val th = k.height * if (k.kind == Kind.LANGUAGE) 1.15f else 1f
         val total = tw * cols
         val left = (if (k.cx > width * 0.6f) k.right - total else k.left).coerceIn(0f, maxOf(0f, width - total))
-        val top = maxOf(0f, k.top - gap - rows * th)
+        // Above the key, over the bar if need be: the keyboard keeps room above itself for the tiles of the first row.
+        val top = k.top - gap - rows * th
         return floatArrayOf(left, top, tw, th, cols.toFloat())
     }
 

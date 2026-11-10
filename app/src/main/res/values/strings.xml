@@ -34,7 +34,7 @@
     <string name="double_space">Full stop after a double space</string>
 
     <string name="chinese">Chinese (Pinyin)</string>
-    <string name="chinese_summary">The 中/英 key switches between Chinese and English. Off: English only.</string>
+    <string name="chinese_summary">The 简/ENG key switches between Chinese and English. Off: English only.</string>
     <string name="auto_correct">Correct misspelled English words</string>
     <string name="learn">Learn the words I choose</string>
     <string name="forget">Forget the learned words</string>
@@ -59,6 +59,6 @@
     <string name="voice_thinking">Working…</string>
     <string name="voice_permission">Allow the microphone, then tap it again</string>
     <string name="voice_unavailable">No speech recognition on this phone</string>
-    <string name="voice_error">Didn\'t catch that. Tap the microphone to try again</string>
+    <string name="voice_error">Didn\'t catch that. Tap the mic to try again</string>
     <string name="voice_space">space</string>
 </resources>

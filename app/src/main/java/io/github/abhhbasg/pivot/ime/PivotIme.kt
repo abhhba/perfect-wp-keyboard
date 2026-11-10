@@ -124,14 +124,14 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener, Voice
         }
         panelBox = box
         val frame = FrameLayout(this).apply {
-            clipChildren = false
+            clipChildren = false; clipToPadding = false
             addView(kb, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(box, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0))
             addView(vp, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0))
         }
         val bd = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            clipChildren = false
+            clipChildren = false; clipToPadding = false
             addView(b, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
@@ -139,7 +139,7 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener, Voice
         val sp0 = View(this).also { spacer = it }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            clipChildren = false
+            clipChildren = false; clipToPadding = false
             addView(sp0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, overlayHeight()))
             addView(bd, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
@@ -507,9 +507,10 @@ class PivotIme : InputMethodService(), KeyListener, CandidateBar.Listener, Voice
         return f
     }
 
+    /** Leaving the letters (for the signs, the emoji, dictation or the other language): Pinyin goes in as its first reading. */
     private fun finishAll() {
         if (composing.isEmpty()) return
-        if (typingChinese()) commitRaw() else finishWord(fix = false)
+        if (typingChinese()) pinyin.firstOrNull()?.let { commitPinyin(it, all = true) } ?: commitRaw() else finishWord(fix = false)
     }
 
     // --- the bar ----------------------------------------------------------------------------------------------------

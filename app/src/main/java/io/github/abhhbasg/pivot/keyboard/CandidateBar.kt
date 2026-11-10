@@ -89,7 +89,7 @@ class CandidateBar(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
-        canvas.drawColor(c.bar)
+        fill.color = c.bar; canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
         val h = height.toFloat()
         val press = Palette.withAlpha(c.text, 0x26)
         voice?.let { status ->
